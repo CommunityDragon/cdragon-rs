@@ -1,0 +1,9 @@
+[workspace]
+members = [
+    "cdragon",
+]
+
+default-members = [
+    "cdragon",
+]
+

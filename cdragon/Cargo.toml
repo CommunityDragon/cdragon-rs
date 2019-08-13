@@ -1,0 +1,28 @@
+[package]
+name = "cdragon"
+version = "0.1.0"
+authors = ["Benoît Ryder <benoit@ryder.fr>"]
+edition = "2018"
+workspace = ".."
+
+[lib]
+name = "cdragon"
+path = "src/lib.rs"
+
+[[bin]]
+name = "cdragon"
+path = "src/bin.rs"
+
+[dependencies]
+num-traits = "0.2"
+nom = "5"
+derive-try-from-primitive = "0.1"
+clap = "2"
+reqwest = "0.9"
+walkdir = "2"
+zstd = "0.5"
+memmap = "0.7"
+twox-hash = "1.5"
+serde = "1.0"
+serde_json = "1.0"
+
