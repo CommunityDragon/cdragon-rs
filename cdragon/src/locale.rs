@@ -35,14 +35,12 @@ impl Locale {
 
     /// Check if bytes make a valid locale code
     fn is_valid_code(bytes: &[u8]) -> bool {
-        (
-            bytes.len() == 5 &&
-            bytes[0].is_ascii_lowercase() &&
-            bytes[1].is_ascii_lowercase() &&
-            bytes[2] == b'_' &&
-            (bytes[3].is_ascii_uppercase() || bytes[3].is_ascii_lowercase()) &&
-            (bytes[4].is_ascii_uppercase() || bytes[4].is_ascii_lowercase())
-        )
+        bytes.len() == 5 &&
+        bytes[0].is_ascii_lowercase() &&
+        bytes[1].is_ascii_lowercase() &&
+        bytes[2] == b'_' &&
+        (bytes[3].is_ascii_uppercase() || bytes[3].is_ascii_lowercase()) &&
+        (bytes[4].is_ascii_uppercase() || bytes[4].is_ascii_lowercase())
     }
 
     /// Get code as an UTF-8 string
