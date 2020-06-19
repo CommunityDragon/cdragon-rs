@@ -432,8 +432,12 @@ impl_binparsable!(BinHash, =BinHashValue::binparse);
 impl_binparsable!(BinLink, =BinEntryPath::binparse);
 impl_binparsable!(BinFlag, map(le_u8, |v| Self(v != 0u8)));
 impl_binparsable!(BinString, =parse_binstring);
-impl_binparsable!(BinType, map(le_u8, |mut v| {
-    if v >= 0x80 { v = v - 0x80 + 18; }
-    Self::try_from(v).expect("invalid BIN type")
+impl_binparsable!(BinType, map(le_u8, |v| {
+    let v2 = match v {
+        0x80 => 18,
+        v if v > 0x80 => v - 0x80 + 17,
+        v => v
+    };
+    Self::try_from(v2).expect("invalid BIN type")
 }));
 
