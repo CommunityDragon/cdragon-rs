@@ -1,7 +1,7 @@
 use std::fs;
 use std::io;
 use std::io::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use clap::{App, SubCommand, Arg, AppSettings};
 use walkdir::{WalkDir, DirEntry};
 
@@ -12,6 +12,8 @@ use cdragon::prop::{
     BinHashKind,
     BinSerializer,
     BinEntriesSerializer,
+    BinHashFinder,
+    BinHashGuesser,
     TextTreeSerializer,
     JsonSerializer,
 };
@@ -62,24 +64,27 @@ fn serialize_bin_scanner(scanner: BinEntryScanner, serializer: &mut dyn BinEntri
 
 
 /// Iterate on bin files from a directory
-fn scan_bin_entries_from_dir<P, F>(root: P, mut f: F) -> Result<()>
-where P: AsRef<Path>,
-      F: FnMut(BinEntryScanner) -> Result<()>,
-{
-    for entry in WalkDir::new(&root).into_iter().filter_entry(is_binfile_direntry) {
-        let entry = entry?;
-        if !entry.file_type().is_file() {
-            continue
-        }
-
-        let path = entry.into_path();
-        let file = fs::File::open(canonicalize_path(&path)?)?;
-        let reader = io::BufReader::new(file);
-        let scanner = PropFile::scan_entries(reader)?;
-        f(scanner)?;
-    }
-    Ok(())
+fn bin_files_from_dir<P: AsRef<Path>>(root: P) -> impl Iterator<Item=PathBuf> {
+    WalkDir::new(&root)
+        .into_iter()
+        .filter_entry(is_binfile_direntry)
+        .filter_map(Result::ok)
+        .filter(|e| e.file_type().is_file())
+        .filter_map(|e| canonicalize_path(&e.into_path()).ok())
 }
+
+/// Collect hashes from a directory
+fn collect_bin_hashes_from_dir<P: AsRef<Path>>(root: P) -> Result<BinHashSets> {
+    let mut hashes = BinHashSets::default();
+    for path in bin_files_from_dir(root) {
+        let scanner = PropFile::scan_entries_from_path(path)?;
+        for entry in scanner.parse() {
+            entry?.gather_bin_hashes(&mut hashes);
+        }
+    }
+    Ok(hashes)
+}
+
 
 /// Read WAD from path parameter
 fn wad_and_hmapper_from_paths(wad_path: &str, hashes_dir: Option<&str>) -> Result<(Wad, io::BufReader<fs::File>, WadHashMapper)> {
@@ -149,6 +154,19 @@ fn main() -> Result<()> {
                      .value_name("dir")
                      .default_value(".")
                      .help("Output directory for unknown hashes files (default: `.`)"))
+                )
+            .subcommand(
+                SubCommand::with_name("guess-hashes")
+                .about("Guess unknown hashes from BIN files")
+                .arg(Arg::with_name("input")
+                     .value_name("bin")
+                     .required(true)
+                     .help("Directory with `.bin` files to scan"))
+                .arg(Arg::with_name("hashes")
+                     .short("H")
+                     .value_name("dir")
+                     .required(true)
+                     .help("Directory with known hash lists"))
                 )
             )
         .subcommand(
@@ -248,13 +266,12 @@ fn main() -> Result<()> {
                     };
 
                     if subm.is_present("recursive") {
-                        scan_bin_entries_from_dir(path, |scanner| {
-                            serialize_bin_scanner(scanner, &mut *serializer)
-                        })?;
+                        for path in bin_files_from_dir(path) {
+                            let scanner = PropFile::scan_entries_from_path(path)?;
+                            serialize_bin_scanner(scanner, &mut *serializer)?;
+                        }
                     } else {
-                        let file = fs::File::open(path)?;
-                        let reader = io::BufReader::new(file);
-                        let scanner = PropFile::scan_entries(reader)?;
+                        let scanner = PropFile::scan_entries_from_path(path)?;
                         serialize_bin_scanner(scanner, &mut *serializer)?;
                     }
 
@@ -266,17 +283,10 @@ fn main() -> Result<()> {
                         let dir = subm.value_of("hashes").unwrap();
                         BinHashMappers::from_dirpath(Path::new(dir))?
                     };
+
+                    let hashes = collect_bin_hashes_from_dir(path)?;
                     let output = Path::new(subm.value_of("output").unwrap());
                     fs::create_dir_all(output)?;
-
-                    // Gather all hashes
-                    let mut hashes = BinHashSets::default();
-                    scan_bin_entries_from_dir(path, |scanner| {
-                        for entry in scanner.parse() {
-                            entry?.gather_bin_hashes(&mut hashes);
-                        }
-                        Ok(())
-                    })?;
 
                     // Then write the result, after excluding known hashes
                     for kind in BinHashKind::variants() {
@@ -295,6 +305,28 @@ fn main() -> Result<()> {
                             }
                         }
                     }
+                }
+                "guess-hashes" => {
+                    let path = subm.value_of("input").unwrap();
+                    let mut hmappers = {
+                        let dir = subm.value_of("hashes").unwrap();
+                        BinHashMappers::from_dirpath(Path::new(dir))?
+                    };
+
+                    // Collect unknown hashes
+                    let mut hashes = collect_bin_hashes_from_dir(path)?;
+                    for kind in BinHashKind::variants() {
+                        let mapper = hmappers.get(kind);
+                        hashes.get_mut(kind).retain(|&h| !mapper.is_known(h));
+                    }
+
+                    let mut finder = BinHashFinder::new(&mut hashes, &mut hmappers);
+                    finder.on_found = |h, s| println!("{:08x} {}", h, s);
+
+                    let mut guesser = BinHashGuesser::new(path, finder);
+                    guesser.guess_all()?;
+
+                    //TODO write back guessed hashes
                 }
             })
         }

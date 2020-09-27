@@ -98,7 +98,7 @@ impl<'a, W: Write> JsonSerializer<'a, W> {
             self.write_field_name(field.name)?;
             self.write_raw(b":")?;
             binvalue_map_type!(field.vtype, T, {
-                let v = field.downcast_value::<T>().unwrap();
+                let v = field.downcast::<T>().unwrap();
                 v.serialize_bin(self)
             })?;
         });
@@ -173,7 +173,7 @@ impl<'a, W: Write> BinSerializer for JsonSerializer<'a, W> {
         self.write_raw(b"[")?;
         binvalue_map_type!(
             v.vtype, T, {
-                let values = v.downcast_values::<T>().unwrap();
+                let values = v.downcast::<T>().unwrap();
                 write_sequence!(self, v in values => v.serialize_bin(self)?)
             });
         self.write_raw(b"]")?;
@@ -194,7 +194,7 @@ impl<'a, W: Write> BinSerializer for JsonSerializer<'a, W> {
         } else {
             binvalue_map_type!(option.vtype, T, {
                 option
-                    .downcast_value::<T>()
+                    .downcast::<T>()
                     .unwrap()  // `None` case processed above
                     .serialize_bin(self)
             })
@@ -207,7 +207,7 @@ impl<'a, W: Write> BinSerializer for JsonSerializer<'a, W> {
             map.ktype, K,
             binvalue_map_type!(
                 map.vtype, V,
-                write_sequence!(self, (k, v) in map.downcast_values::<K, V>().unwrap() => {
+                write_sequence!(self, (k, v) in map.downcast::<K, V>().unwrap() => {
                     k.serialize_bin_key(self)?;
                     self.write_raw(b":")?;
                     v.serialize_bin(self)?;

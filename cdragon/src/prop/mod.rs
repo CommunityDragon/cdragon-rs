@@ -7,9 +7,11 @@ mod serializer;
 mod text_tree;
 mod json;
 mod gather_hashes;
+mod guess_hashes;
 mod data;
 
 use std::io;
+use std::fs;
 use std::path::Path;
 use std::collections::HashSet;
 
@@ -20,6 +22,7 @@ pub use data::*;
 pub use parser::BinEntryScanner;
 pub use text_tree::TextTreeSerializer;
 pub use json::JsonSerializer;
+pub use guess_hashes::{BinHashFinder, BinHashGuesser};
 
 
 /// Mapper used for bin hashes
@@ -104,8 +107,20 @@ impl PropFile {
         Ok(parser::binparse(data)?)
     }
 
-    /// Iterate on entry headers (path and type) from a PROP file
-    pub fn scan_entries<R: io::Read>(reader: R) -> Result<BinEntryScanner<R>> {
+    /// Parse a whole `PropFile` from data
+    pub fn from_path<P: AsRef<Path>>(path: P) -> Result<PropFile> {
+        Self::from_slice(&fs::read(path.as_ref())?)
+    }
+
+    /// Iterate on entry headers (path and type) from a PROP reader
+    pub fn scan_entries_from_reader<R: io::Read>(reader: R) -> Result<BinEntryScanner<R>> {
+        BinEntryScanner::new(reader)
+    }
+
+    /// Iterate on entry headers (path and type) from a PROP file path
+    pub fn scan_entries_from_path<P: AsRef<Path>>(path: P) -> Result<BinEntryScanner<io::BufReader<fs::File>>> {
+        let file = fs::File::open(path)?;
+        let reader = io::BufReader::new(file);
         BinEntryScanner::new(reader)
     }
 }
@@ -127,6 +142,14 @@ impl BinEntry {
     pub fn gather_bin_hashes(&self, hashes: &mut BinHashSets) {
         self.gather_hashes(hashes);
     }
+
+    pub fn get(&self, name: BinFieldName) -> Option<&BinField> {
+        self.fields.iter().find(|f| f.name == name)
+    }
+
+    pub fn getv<T: BinValue + 'static>(&self, name: BinFieldName) -> Option<&T> {
+        self.get(name).and_then(|field| field.downcast::<T>())
+    }
 }
 
 /// Compute a bin hash from a string
@@ -136,5 +159,24 @@ impl BinEntry {
 pub fn compute_binhash(s: &str) -> u32 {
     s.to_ascii_lowercase().bytes()
         .fold(0x811c9dc5_u32, |h, b| (h ^ b as u32).wrapping_mul(0x01000193))
+}
+
+/// Same as `compute_binhash()` but const
+///
+/// Implementation is less straightforward due to current limited support of const.
+pub const fn compute_binhash_const(s: &str) -> u32 {
+    let mut h = 0x811c9dc5_u32;
+    let bytes = s.as_bytes();
+    let mut i = 0usize;
+    while i < bytes.len() {
+        let mut b = bytes[i];
+        // convert to lowercase, const
+        if b >= 'A' as u8 && b <= 'Z' as u8 {
+            b = b | ' ' as u8;
+        }
+        h = (h ^ b as u32).wrapping_mul(0x01000193);
+        i += 1;
+    }
+    return h;
 }
 

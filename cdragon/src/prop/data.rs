@@ -11,7 +11,7 @@ pub struct BinField {
 }
 
 impl BinField {
-    pub fn downcast_value<T: BinValue + 'static>(&self) -> Option<&T> {
+    pub fn downcast<T: BinValue + 'static>(&self) -> Option<&T> {
         self.value.downcast_ref::<T>()
     }
 }
@@ -139,7 +139,7 @@ pub struct BinList {
 }
 
 impl BinList {
-    pub fn downcast_values<T: BinValue + 'static>(&self) -> Option<&Vec<T>> {
+    pub fn downcast<T: BinValue + 'static>(&self) -> Option<&Vec<T>> {
         self.values.downcast_ref::<Vec<T>>()
     }
 }
@@ -163,7 +163,7 @@ pub struct BinOption {
 }
 
 impl BinOption {
-    pub fn downcast_value<T: BinValue + 'static>(&self) -> Option<&T> {
+    pub fn downcast<T: BinValue + 'static>(&self) -> Option<&T> {
         match self.value {
             Some(ref v) => Some(v.downcast_ref::<T>()?),
             None => None,
@@ -179,7 +179,7 @@ pub struct BinMap {
 }
 
 impl BinMap {
-    pub fn downcast_values<K: BinValue + 'static, V: BinValue + 'static>(&self) -> Option<&Vec<(K, V)>> {
+    pub fn downcast<K: BinValue + 'static, V: BinValue + 'static>(&self) -> Option<&Vec<(K, V)>> {
         self.values.downcast_ref::<Vec<(K, V)>>()
     }
 }

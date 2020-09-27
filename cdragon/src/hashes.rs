@@ -96,6 +96,13 @@ impl<T> HashMapper<T> where T: Num + Eq + Hash {
     pub fn is_known(&self, hash: T) -> bool {
         self.map.contains_key(&hash)
     }
+
+    /// Add a hash to the mapper
+    ///
+    /// Note: the caller must ensure the value matches the hash.
+    pub fn insert(&mut self, hash: T, value: String) {
+        self.map.insert(hash, value);
+    }
 }
 
 

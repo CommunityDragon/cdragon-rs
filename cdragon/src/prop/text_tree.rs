@@ -95,19 +95,19 @@ impl<'a, W: Write> TextTreeSerializer<'a, W> {
         macro_rules! serialize_field {
             // Default, for basic bin types
             ($t:ty) => {{
-                let v = field.downcast_value::<$t>().unwrap();
+                let v = field.downcast::<$t>().unwrap();
                 serialize!(self, "{} ", basic_bintype_name(field.vtype))?;
                 v.serialize_bin(self)?;
             }};
             // Nested bin types with fields
             ($t:ty: {$v:ident} => $($fmt:tt)*) => {{
-                let $v = field.downcast_value::<$t>().unwrap();
+                let $v = field.downcast::<$t>().unwrap();
                 serialize!(self, $($fmt)*)?;
                 self.write_fields(&$v.fields)?;
             }};
             // Other nested bin types
             ($t:ty: [$v:ident] => $($fmt:tt)*) => {{
-                let $v = field.downcast_value::<$t>().unwrap();
+                let $v = field.downcast::<$t>().unwrap();
                 serialize!(self, $($fmt)*)?;
                 $v.serialize_bin(self)?;
             }};
@@ -189,7 +189,7 @@ impl<'a, W: Write> BinSerializer for TextTreeSerializer<'a, W> {
         indented!(self, {
             binvalue_map_type!(
                 v.vtype, T,
-                v.downcast_values::<T>().unwrap().iter().try_for_each(|x| {
+                v.downcast::<T>().unwrap().iter().try_for_each(|x| {
                     serializeln!(self)?;
                     x.serialize_bin(self)
                 }))?;
@@ -221,7 +221,7 @@ impl<'a, W: Write> BinSerializer for TextTreeSerializer<'a, W> {
                 serializeln!(self)?;
                 binvalue_map_type!(option.vtype, T, {
                     option
-                        .downcast_value::<T>()
+                        .downcast::<T>()
                         .unwrap()  // `None` case processed above
                         .serialize_bin(self)
                 })?
@@ -238,7 +238,7 @@ impl<'a, W: Write> BinSerializer for TextTreeSerializer<'a, W> {
                 map.ktype, K,
                 binvalue_map_type!(
                     map.vtype, V,
-                    map.downcast_values::<K, V>().unwrap().iter().try_for_each(|(k, v)| -> io::Result<()> {
+                    map.downcast::<K, V>().unwrap().iter().try_for_each(|(k, v)| -> io::Result<()> {
                         serializeln!(self)?;
                         k.serialize_bin(self)?;
                         serialize!(self, " => ")?;

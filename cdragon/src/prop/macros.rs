@@ -49,3 +49,7 @@ macro_rules! binvalue_map_keytype {
     })
 }
 
+/// Convenient helper for const, inline computation of bin hashes
+#[macro_export]
+macro_rules! binh { ($e:expr) => { compute_binhash($e).into() } }
+

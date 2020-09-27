@@ -50,7 +50,7 @@ impl GatherHashes for BinField {
     fn gather_hashes(&self, hashes: &mut BinHashSets) {
         hashes.field_name.insert(self.name.hash);
         binvalue_map_with_hashes!(self.vtype, T, {
-            self.downcast_value::<T>().unwrap().gather_hashes(hashes);
+            self.downcast::<T>().unwrap().gather_hashes(hashes);
         });
     }
 }
@@ -77,8 +77,8 @@ impl GatherHashes for BinOption {
     fn gather_hashes(&self, hashes: &mut BinHashSets) {
         if self.value.is_some() {
             match self.vtype {
-                BinType::Hash => self.downcast_value::<BinHash>().unwrap().gather_hashes(hashes),
-                BinType::Link => self.downcast_value::<BinLink>().unwrap().gather_hashes(hashes),
+                BinType::Hash => self.downcast::<BinHash>().unwrap().gather_hashes(hashes),
+                BinType::Link => self.downcast::<BinLink>().unwrap().gather_hashes(hashes),
                 _ => {}
             }
         }
@@ -89,17 +89,17 @@ impl GatherHashes for BinList {
     fn gather_hashes(&self, hashes: &mut BinHashSets) {
         match self.vtype {
             BinType::Struct => {
-                for v in self.downcast_values::<BinStruct>().unwrap() {
+                for v in self.downcast::<BinStruct>().unwrap() {
                     v.gather_hashes(hashes);
                 }
             }
             BinType::Hash => {
-                for v in self.downcast_values::<BinHash>().unwrap() {
+                for v in self.downcast::<BinHash>().unwrap() {
                     v.gather_hashes(hashes);
                 }
             }
             BinType::Link => {
-                for v in self.downcast_values::<BinLink>().unwrap() {
+                for v in self.downcast::<BinLink>().unwrap() {
                     v.gather_hashes(hashes);
                 }
             }
@@ -113,7 +113,7 @@ impl GatherHashes for BinMap {
         // process keys, then value, for better code factorization
         match self.ktype {
             BinType::Hash => binvalue_map_type!(self.vtype, V, {
-                for (k, _) in self.downcast_values::<BinHash, V>().unwrap() {
+                for (k, _) in self.downcast::<BinHash, V>().unwrap() {
                     k.gather_hashes(hashes);
                 }
             }),
@@ -121,7 +121,7 @@ impl GatherHashes for BinMap {
         }
         binvalue_map_keytype!(self.ktype, K, {
             binvalue_map_with_hashes!(self.vtype, V, {
-                for (_, v) in self.downcast_values::<K, V>().unwrap() {
+                for (_, v) in self.downcast::<K, V>().unwrap() {
                     v.gather_hashes(hashes);
                 }
             })

@@ -256,17 +256,16 @@ where R: Read, F: Fn(BinEntryPath, BinClassName) -> bool {
 impl<R, F> BinEntryScan for BinEntryScanFilterParse<R, F>
 where R: Read, F: Fn(BinEntryPath, BinClassName) -> bool {
     type Reader = R;
-    type Output = BinEntry;
+    type Output = Option<BinEntry>;
 
     fn next_result(&mut self, ctype: BinClassName) -> Result<Self::Output> {
-        loop {
-            let (length, path) = Self::next_scan(&mut self.reader)?;
-            if (self.filter)(path, ctype) {
-                let fields = Self::read_fields(&mut self.reader, length)?;
-                return Ok(BinEntry { path, ctype, fields })
-            } else {
-                Self::skip_fields(&mut self.reader, length)?;
-            }
+        let (length, path) = Self::next_scan(&mut self.reader)?;
+        if (self.filter)(path, ctype) {
+            let fields = Self::read_fields(&mut self.reader, length)?;
+            Ok(Some(BinEntry { path, ctype, fields }))
+        } else {
+            Self::skip_fields(&mut self.reader, length)?;
+            Ok(None)
         }
     }
 }
@@ -276,8 +275,14 @@ where R: Read, F: Fn(BinEntryPath, BinClassName) -> bool {
     type Item = Result<BinEntry>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let ctype = self.htypes_iter.next()?;
-        Some(self.next_result(ctype))
+        loop {
+            let ctype = self.htypes_iter.next()?;
+            match self.next_result(ctype) {
+                Ok(None) => continue,
+                Ok(Some(v)) => return Some(Ok(v)),
+                Err(e) => return Some(Err(e)),
+            }
+        }
     }
 }
 
