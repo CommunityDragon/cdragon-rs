@@ -51,5 +51,29 @@ macro_rules! binvalue_map_keytype {
 
 /// Convenient helper for const, inline computation of bin hashes
 #[macro_export]
-macro_rules! binh { ($e:expr) => { compute_binhash($e).into() } }
+macro_rules! binh { ($e:expr) => { compute_binhash_const($e).into() } }
+
+/// Helper to access nested bin values
+///
+/// First parameter is the top-level bin value to access.
+/// Second parameter is the sequence of items to access.
+/// Elements must be properly downcasted by indicating the type when needed (in brackets).
+///
+/// Return an `Option`.
+#[macro_export]
+macro_rules! binget {
+    // Entry-point: wrap in a lambda to use `?` to handle options
+    ($e:expr => $($tail:tt)*) => { (|| Some(binget!($e, $($tail)*)))() };
+    // Termination
+    ($e:expr, ) => { $e };
+    // `.`: intended to be used to chain field access, but actually ignored
+    ($e:expr, . $($tail:tt)*) => { binget!($e, $($tail)*) };
+    // `fieldName(Type)`: access field from struct-like
+    ($e:expr, $f:ident($t:ty) $($tail:tt)*) => { binget!($e.getv::<$t>(binh!(stringify!($f)))?, $($tail)*) };
+    // `(Type)`: downcast
+    ($e:expr, ($t:ty) $($tail:tt)*) => { binget!($e.downcast::<$t>()?, $($tail)*) };
+    //TODO
+    // - BinMap access
+    // - allow shorten types (e.g. without `Bin`), requires `concat_indents!()`, or procedural macro
+}
 

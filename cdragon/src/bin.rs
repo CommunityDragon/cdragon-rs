@@ -308,10 +308,8 @@ fn main() -> Result<()> {
                 }
                 "guess-hashes" => {
                     let path = subm.value_of("input").unwrap();
-                    let mut hmappers = {
-                        let dir = subm.value_of("hashes").unwrap();
-                        BinHashMappers::from_dirpath(Path::new(dir))?
-                    };
+                    let hdir = Path::new(subm.value_of("hashes").unwrap());
+                    let mut hmappers = BinHashMappers::from_dirpath(hdir)?;
 
                     // Collect unknown hashes
                     let mut hashes = collect_bin_hashes_from_dir(path)?;
@@ -326,7 +324,8 @@ fn main() -> Result<()> {
                     let mut guesser = BinHashGuesser::new(path, finder);
                     guesser.guess_all()?;
 
-                    //TODO write back guessed hashes
+                    //TODO don't write if nothing has been found?
+                    hmappers.write_dirpath(hdir)?;
                 }
             })
         }

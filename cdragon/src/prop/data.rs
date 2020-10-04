@@ -150,10 +150,30 @@ pub struct BinStruct {
     pub fields: Vec<BinField>,
 }
 
+impl BinStruct {
+    pub fn get(&self, name: BinFieldName) -> Option<&BinField> {
+        self.fields.iter().find(|f| f.name == name)
+    }
+
+    pub fn getv<T: BinValue + 'static>(&self, name: BinFieldName) -> Option<&T> {
+        self.get(name).and_then(|field| field.downcast::<T>())
+    }
+}
+
 /// Bin structure whose data is embedded directly
 pub struct BinEmbed {
     pub ctype: BinClassName,
     pub fields: Vec<BinField>,
+}
+
+impl BinEmbed {
+    pub fn get(&self, name: BinFieldName) -> Option<&BinField> {
+        self.fields.iter().find(|f| f.name == name)
+    }
+
+    pub fn getv<T: BinValue + 'static>(&self, name: BinFieldName) -> Option<&T> {
+        self.get(name).and_then(|field| field.downcast::<T>())
+    }
 }
 
 /// Optional bin value

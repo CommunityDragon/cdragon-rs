@@ -1,10 +1,12 @@
 use std::path::{Path, PathBuf};
+use std::collections::HashMap;
 use super::{
     PropFile,
     BinHashKind,
     BinHashSets,
     BinHashMappers,
     compute_binhash,
+    compute_binhash_const,
     Result,
 };
 use super::data::*;
@@ -65,8 +67,10 @@ impl<'a> BinHashGuesser<'a> {
         Self { root, finder }
     }
 
-    /// Find all character names from Character and derived entries
-    pub fn collect_character_names(&self) -> Result<Vec<String>> {
+    /// Find all "top-level" character names from Character and derived entries
+    ///
+    /// Returned characters "additionalCharacters".
+    pub fn collect_base_character_names(&self) -> Result<Vec<String>> {
         let mut names = Vec::new();
 
         let paths = [
@@ -92,68 +96,143 @@ impl<'a> BinHashGuesser<'a> {
         Ok(names)
     }
 
+    /// Find character names, based on `data/characters/` subdirectories
+    pub fn collect_character_names(&self) -> Vec<String> {
+        WalkDir::new(self.root.join("data/characters")).max_depth(1)
+            .into_iter()
+            .filter_map(|e| e.ok())
+            .filter_map(|e| {
+                let path = e.path();
+                let name = path.file_name().unwrap().to_str().unwrap();
+                if path.join(format!("{}.bin", name)).is_file() {
+                    Some(name.to_owned())
+                } else {
+                    None
+                }
+            }).collect()
+    }
+
     /// Guess everything possible
     pub fn guess_all(&mut self) -> Result<()> {
+        self.guess_common_entry_types_paths()?;
         self.guess_from_characters()?;
         self.guess_from_items()?;
         self.guess_from_companions()?;
         self.guess_from_summoner_emotes()?;
+        self.guess_from_summoner_trophies()?;
         self.guess_from_tft_map_skins()?;
-        self.guess_from_perks()?;
-        self.guess_from_shaders()?;
+        self.guess_from_shaders_shareddata()?;
+        self.guess_from_fonts()?;
+        self.guess_from_tooltips()?;
         Ok(())
     }
 
     /// Guess hashes from all characters
     pub fn guess_from_characters(&mut self) -> Result<()> {
-        for name in self.collect_character_names()? {
+        for name in self.collect_character_names() {
             self.guess_from_character(&name)?;
         }
         Ok(())
     }
 
-    /// Guess hashes from character name
+    /// Guess hashes from character name (case insensitive)
     pub fn guess_from_character(&mut self, name: &str) -> Result<()> {
-        let prefix = format!("Characters/{}", name);
-        let lname = name.to_ascii_lowercase();
-        let path = self.root.join("data/characters").join(&lname);
+        let name = name.to_ascii_lowercase();
+        let path = self.root.join("data/characters").join(&name);
 
-        // Guess common hashes
-        // Note: possible entries actually depend on the character subtype, but it does not cost
-        // much to check them all.
-        self.finder.check_from_iter(BinHashKind::EntryPath, vec![
-            format!("{}", prefix),
-            format!("{}/CharacterRecords/Root", prefix),
-            format!("{}/CharacterRecords/SLIME", prefix),
-            format!("{}/CharacterRecords/URF", prefix),
-            format!("{}/Skins/Meta", prefix),
-            format!("{}/Skins/Root", prefix),
-        ].into_iter());
+        let mut prefix: Option<String> = None;
+        // Collect spell and ability names in a shared map
+        let mut spell_names = HashMap::<BinEntryPath, String>::new();
+        let mut abilities: Option<Vec<BinEntryPath>> = None;
+        let mut ability_spells = HashMap::<BinEntryPath, Vec<BinEntryPath>>::new();
+
+        const FILTERED_TYPES: [u32; 4] = [
+            compute_binhash_const("CharacterRecord"),
+            compute_binhash_const("TFTCharacterRecord"),
+            compute_binhash_const("SpellObject"),
+            compute_binhash_const("AbilityObject"),
+        ];
 
         // Open character's bin file
-        let scanner = PropFile::scan_entries_from_path(path.join(format!("{}.bin", lname)))?;
-        for entry in scanner.filter_parse(|_, htype| htype == binh!("CharacterRecord")) {
+        //TODO Add a method to scan and parse after checking the entry type
+        let scanner = PropFile::scan_entries_from_path(path.join(format!("{}.bin", name)))?;
+        for entry in scanner.filter_parse(|_, htype| FILTERED_TYPES.contains(&htype.hash)) {
             let entry = entry?;
-            if entry.ctype == binh!("CharacterRecord") {
-                //XXX Spells can be found in different "directories"
-                // A lot are in `Shared/Spells` but there could be cross-character spells too
-                if let Some(spell_names) = entry.getv::<BinList>(binh!("spellNames")) {
-                    let it = spell_names.downcast::<BinString>().unwrap().iter()
+            if entry.ctype == binh!("CharacterRecord") || entry.ctype == binh!("TFTCharacterRecord") {
+                let cname = binget!(entry => mCharacterName(BinString));
+                if cname.is_none() {
+                    break;  // no character name, no need to continue
+                }
+                prefix = Some(format!("Characters/{}", cname.unwrap().0));
+                let prefix = prefix.as_ref().unwrap();
+
+                // Now that we have the capitalized prefix, guess common entries.
+                // Note: possible entries actually depend on the character subtype, but it does not cost
+                // much to check them all.
+                self.finder.check_from_iter(BinHashKind::EntryPath, vec![
+                    format!("{}", prefix),
+                    format!("{}/CharacterRecords/Root", prefix),
+                    format!("{}/CharacterRecords/SLIME", prefix),
+                    format!("{}/CharacterRecords/URF", prefix),
+                    format!("{}/Skins/Meta", prefix),
+                    format!("{}/Skins/Root", prefix),
+                ].into_iter());
+
+                // Spells can be found in different "directories", for instance:
+                // - common spells `Shared/Spells` (not checked)
+                // - children spells of "abilities"
+                // - cross-character spells (not checked)
+                if let Some(spell_names) = binget!(entry => spellNames(BinList)(BinString)) {
+                    let it = spell_names.iter()
                         .map(|v| format!("{}/Spells/{}", prefix, v.0));
                     self.finder.check_from_iter(BinHashKind::EntryPath, it);
                 }
-                if let Some(spell_names) = entry.getv::<BinList>(binh!("extraSpells")) {
-                    let it = spell_names.downcast::<BinString>().unwrap().iter()
+                if let Some(spell_names) = binget!(entry => extraSpells(BinList)(BinString)) {
+                    let it = spell_names.iter()
                         .filter(|v| v.0 != "BaseSpell")
                         .map(|v| format!("{}/Spells/{}", prefix, v.0));
                     self.finder.check_from_iter(BinHashKind::EntryPath, it);
+                }
+                abilities = binget!(entry => mAbilities(BinList)(BinLink)).and_then(|v| Some(v.iter().map(|v| v.0).collect()));
+
+            } else if entry.ctype == binh!("SpellObject") {
+                if let Some(name) = binget!(entry => mScriptName(BinString)) {
+                    spell_names.insert(entry.path, name.0.to_owned());
+                }
+            } else if entry.ctype == binh!("AbilityObject") {
+                let name = binget!(entry => mName(BinString)).expect("AbilityObject without a name").0.to_owned();
+                spell_names.insert(entry.path, name);
+                let root_spell = binget!(entry => mRootSpell(BinLink)).expect("AbilityObject without a root spell").0;
+                let mut spells: Vec<BinEntryPath> = vec![root_spell];
+                if let Some(child_spells) = binget!(entry => mChildSpells(BinList)(BinLink)) {
+                    spells.extend(child_spells.iter().map(|v| v.0));
+                }
+                ability_spells.insert(entry.path, spells);
+            }
+        }
+
+        // Some characters are (almost) empty, ignore them
+        // Note that they usually have a `/Skins/Meta` entry which will not be guessed.
+        if prefix.is_none() {
+            return Ok(());
+        }
+        let prefix = prefix.unwrap();
+
+        // Check all collected spell names, just in case
+        self.finder.check_from_iter(BinHashKind::EntryPath, spell_names.values().map(|s| format!("{}/Spells/{}", prefix, s)));
+        // Check spells from abilities
+        if let Some(abilities) = abilities {
+            for hability in abilities {
+                // Some related characters use cross-character abilities (ex. Elemental Lux)
+                if let Some(ability_name) = spell_names.get(&hability) {
+                    self.finder.check_from_iter(BinHashKind::EntryPath, ability_spells[&hability].iter().map(|h| format!("{}/Spells/{}/{}", prefix, ability_name, spell_names[&h])));
                 }
             }
         }
 
         // Check skins
-        for entry in Self::walk_bins(WalkDir::new(path.join("skins")).max_depth(1)) {
-            let mut skin_name = entry.path().file_name().unwrap().to_str().unwrap().to_owned();
+        for direntry in Self::walk_bins(WalkDir::new(path.join("skins")).max_depth(1)) {
+            let mut skin_name = direntry.path().file_stem().unwrap().to_str().unwrap().to_owned();
             if let Some(s) = skin_name.get_mut(0..1) {
                 s.make_ascii_uppercase();
             }
@@ -165,23 +244,17 @@ impl<'a> BinHashGuesser<'a> {
             ].into_iter());
 
             // Parse all entries, don't bother filtering
-            for entry in PropFile::from_path(entry.path())?.entries {
+            for entry in PropFile::from_path(direntry.path())?.entries {
                 if entry.ctype == binh!("SkinCharacterDataProperties") {
                     //TODO mContextualActionData is usually included in another file
-                    entry.getv::<BinString>(binh!("name")).map(|v| self.finder.check(BinHashKind::EntryPath, &v.0));
-                } else if entry.ctype == binh!("StaticMaterialDef") {
-                    entry.getv::<BinString>(binh!("name")).map(|v| self.finder.check(BinHashKind::EntryPath, &v.0));
-                } else if entry.ctype == binh!("ContextualActionData") {
-                    entry.getv::<BinString>(binh!("mObjectPath")).map(|v| self.finder.check(BinHashKind::EntryPath, &v.0));
-                } else if entry.ctype == binh!("VfxSystemDefinitionData") {
-                    entry.getv::<BinString>(binh!("mParticlePath")).map(|v| self.finder.check(BinHashKind::EntryPath, &v.0));
+                    binget!(entry => name(BinString)).map(|v| self.finder.check(BinHashKind::EntryPath, &v.0));
                 }
             }
         }
 
         // Check animations
-        for entry in Self::walk_bins(WalkDir::new(path.join("animations")).max_depth(1)) {
-            let mut skin_name = entry.path().file_name().unwrap().to_str().unwrap().to_owned();
+        for direntry in Self::walk_bins(WalkDir::new(path.join("animations")).max_depth(1)) {
+            let mut skin_name = direntry.path().file_stem().unwrap().to_str().unwrap().to_owned();
             if let Some(s) = skin_name.get_mut(0..1) {
                 s.make_ascii_uppercase();
             }
@@ -202,8 +275,6 @@ impl<'a> BinHashGuesser<'a> {
                 entry.getv::<BinString>(binh!("mScriptName")).map(|v| self.finder.check(BinHashKind::EntryPath, format!("Items/Spells/{}", v.0)));
             } else if entry.ctype == binh!("ItemData") {
                 entry.getv::<BinS32>(binh!("itemID")).map(|v| self.finder.check(BinHashKind::EntryPath, format!("Items/{}", v.0)));
-            } else if entry.ctype == binh!("VfxSystemDefinitionData") {
-                entry.getv::<BinString>(binh!("mParticlePath")).map(|v| self.finder.check(BinHashKind::EntryPath, &v.0));
             }
         }
 
@@ -227,8 +298,21 @@ impl<'a> BinHashGuesser<'a> {
                 entry.getv::<BinString>(binh!("speciesLink")).map(|v| self.finder.check(BinHashKind::EntryPath, &v.0));
             } else if entry.ctype == binh!("SummonerEmote") {
                 entry.getv::<BinU32>(binh!("summonerEmoteId")).map(|v| self.finder.check(BinHashKind::EntryPath, format!("Loadouts/SummonerEmotes/{}", v.0)));
-            } else if entry.ctype == binh!("VfxSystemDefinitionData") {
-                entry.getv::<BinString>(binh!("mParticlePath")).map(|v| self.finder.check(BinHashKind::EntryPath, &v.0));
+            }
+        }
+        Ok(())
+    }
+
+    pub fn guess_from_summoner_trophies(&mut self) -> Result<()> {
+        // Formats given in `{89e3706b}.mGDSObjectPathTemplates`
+        for entry in PropFile::from_path(self.root.join("global/loadouts/summonertrophies.bin"))?.entries {
+            if entry.ctype == binh!("TrophyData") {
+                let skeleton = binget!(entry => skinMeshProperties(BinEmbed).skeleton(BinString)).expect("TrophyData skeleton not found");
+                // Extract the cup name
+                let cup = skeleton.0.split('/').nth(4).expect("TrophyData cup name not found");
+                self.finder.check_from_iter(BinHashKind::EntryPath, [4, 8, 16].iter().map(|gem| {
+                    format!("Loadouts/SummonerTrophies/Trophies/{}/Trophy_{}", cup, gem)
+                }));
             }
         }
         Ok(())
@@ -247,28 +331,59 @@ impl<'a> BinHashGuesser<'a> {
         Ok(())
     }
 
-    pub fn guess_from_perks(&mut self) -> Result<()> {
-        for entry in PropFile::from_path(self.root.join("global/perks/perks.bin"))?.entries {
-            if entry.ctype == binh!("VfxSystemDefinitionData") {
-                entry.getv::<BinString>(binh!("mParticlePath")).map(|v| self.finder.check(BinHashKind::EntryPath, &v.0));
+    pub fn guess_from_shaders_shareddata(&mut self) -> Result<()> {
+        for entry in PropFile::from_path(self.root.join("assets/shaders/shareddata.bin"))?.entries {
+            if entry.ctype == binh!("X3DSharedConstantBufferDef") {
+                let name = &binget!(entry => name(BinString)).expect("missing name").0;
+                self.finder.check(BinHashKind::EntryPath, format!("Shaders/SharedData/{}", name));
             }
         }
         Ok(())
     }
 
-    pub fn guess_from_shaders(&mut self) -> Result<()> {
-        for entry in PropFile::from_path(self.root.join("data/shaders/shaders.bin"))?.entries {
-            if entry.ctype == binh!("CustomShaderDef") {
-                entry.getv::<BinString>(binh!("objectPath")).map(|v| self.finder.check(BinHashKind::EntryPath, &v.0));
+    pub fn guess_from_fonts(&mut self) -> Result<()> {
+        for entry in PropFile::from_path(self.root.join("ux/fonts.bin"))?.entries {
+            if entry.ctype == binh!("GameFontDescription") {
+                let name = &binget!(entry => name(BinString)).expect("missing name").0;
+                self.finder.check(BinHashKind::EntryPath, format!("UX/Fonts/Descriptions/{}", name));
+            }
+        }
+        Ok(())
+    }
+
+    pub fn guess_from_tooltips(&mut self) -> Result<()> {
+        for entry in PropFile::from_path(self.root.join("ux/tooltips.bin"))?.entries {
+            if entry.ctype == binh!("TooltipFormat") {
+                let name = &binget!(entry => mObjectName(BinString)).expect("missing name").0;
+                self.finder.check(BinHashKind::EntryPath, format!("UX/Tooltips/{}", name));
+            }
+        }
+        Ok(())
+    }
+
+    /// Guess entry paths for common types
+    pub fn guess_common_entry_types_paths(&mut self) -> Result<()> {
+        let mut htype_to_field = HashMap::<BinClassName, BinFieldName>::new();
+        htype_to_field.insert(binh!("ContextualActionData"), binh!("mObjectPath"));
+        htype_to_field.insert(binh!("CustomShaderDef"), binh!("objectPath"));
+        htype_to_field.insert(binh!("StaticMaterialDef"), binh!("name"));
+        htype_to_field.insert(binh!("MapContainer"), binh!("mapPath"));
+        htype_to_field.insert(binh!("MapPlaceableContainer"), binh!("path"));
+        htype_to_field.insert(binh!("VfxSystemDefinitionData"), binh!("particlePath"));
+
+        for direntry in Self::walk_bins(WalkDir::new(&self.root)) {
+            let scanner = PropFile::scan_entries_from_path(direntry.path())?;
+            for entry in scanner.filter_parse(|_, htype| htype_to_field.contains_key(&htype)) {
+                let entry = entry?;
+                //XXX Cannot use `match` because of `binh!`
+                let hfield = htype_to_field[&entry.ctype];
+                entry.getv::<BinString>(hfield).map(|v| self.finder.check(BinHashKind::EntryPath, &v.0));
             }
         }
         Ok(())
     }
 
     // Guess `Emblems/{N}` from `data/emblems.bin`
-    // Paths of some entry types can be found directly in the entry itself; factorize these cases if they can be found in multiple files
-    //   `VfxSystemDefinitionData`
-    //   `CustomShaderDef`
     // Get spells, etc. from non-character .bin (if any)
 
 
@@ -276,50 +391,8 @@ impl<'a> BinHashGuesser<'a> {
     fn walk_bins(walk: WalkDir) -> impl Iterator<Item=DirEntry> {
         walk.into_iter()
             .filter_map(|e| e.ok())
-            .filter(|e| e.path().extension().map_or(false, |v| v == "bin"))
+            .filter(|e| e.path().extension().map_or(false, |s| s == "bin") && e.file_name() != "tftoutofgamecharacterdata.bin")
+
     }
 }
 
-
-/*
-
-files with character records
-    game/data/maps/shipping/common/common.bin
-    game/data/maps/shipping/map11/map11.bin
-    game/data/maps/shipping/map12/map12.bin
-    game/data/maps/shipping/map21/map21.bin
-    game/data/maps/shipping/map22/map22.bin
-    game/global/champions/champions.bin
-
-- root of bin files
-- list of known hashes
-- list of unknown hashes
-  - parsed from bin files
-  - or from given files (faster)
-
-- characters
-  - guess list from entries
-
-
- TFT: list of 
-
-<BinEntry 'Characters/TFT_Garen' Character [
-  <name STRING 'TFT_Garen'>
-]>
-
-
-Main game, list of:
-
-<BinEntry 'Characters/Garen' Champion [
-  <name STRING 'Garen'>
-
-game/global/champions/champions.bin.json
-
-11c780d4 Characters/TFT2_Aatrox
-6e5ef1e6 Characters/TFT2_Aatrox/Animations/Skin0
-a7c11057 Characters/TFT2_Aatrox/CharacterRecords/Root
-ff79ff32 Characters/TFT2_Aatrox/Skins/Root
-234a8029 Characters/TFT2_Aatrox/Skins/Skin0
-
-
-*/
