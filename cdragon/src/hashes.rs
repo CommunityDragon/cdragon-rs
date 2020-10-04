@@ -1,6 +1,6 @@
 use std::fmt;
 use std::fs::File;
-use std::io::{BufReader, BufRead};
+use std::io::{BufReader, BufRead, BufWriter, Write};
 use std::collections::HashMap;
 use std::path::Path;
 use std::hash::Hash;
@@ -102,6 +102,25 @@ impl<T> HashMapper<T> where T: Num + Eq + Hash {
     /// Note: the caller must ensure the value matches the hash.
     pub fn insert(&mut self, hash: T, value: String) {
         self.map.insert(hash, value);
+    }
+}
+
+impl<T> HashMapper<T> where T: Num + Eq + Hash + fmt::LowerHex {
+    /// Write hash map to a writer
+    pub fn write<W: Write>(&self, writer: &mut W) -> Result<()> {
+        let mut entries: Vec<_> = self.map.iter().collect();
+        entries.sort_by_key(|kv| kv.1);
+        for (h, s) in entries {
+            writeln!(writer, "{:0w$x} {}", h, s, w = Self::HASH_LEN)?;
+        }
+        Ok(())
+    }
+
+    /// Write hash map to a file
+    pub fn write_path<P: AsRef<Path>>(&self, path: P) -> Result<()> {
+        let file = File::create(&path)?;
+        self.write(&mut BufWriter::new(file))?;
+        Ok(())
     }
 }
 

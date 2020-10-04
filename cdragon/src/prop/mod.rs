@@ -90,6 +90,14 @@ impl BinHashMappers {
         }
         Ok(())
     }
+
+    /// Write all sub-mappers to a directory path
+    pub fn write_dirpath(&self, path: &Path) -> Result<()> {
+        for kind in BinHashKind::variants() {
+            self.get(kind).write_path(path.join(kind.mapper_path()))?;
+        }
+        Ok(())
+    }
 }
 
 
