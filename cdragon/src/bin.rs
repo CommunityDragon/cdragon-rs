@@ -125,17 +125,15 @@ fn main() -> Result<()> {
                 .arg(Arg::with_name("input")
                      .value_name("bin")
                      .required(true)
-                     .help("`.bin` file or directory to extract"))
+                     .multiple(true)
+                     .help("`.bin` files or directories to extract (recursively for directories)"))
                 .arg(Arg::with_name("hashes")
                      .short("H")
                      .value_name("dir")
                      .help("Directory with hash lists"))
-                .arg(Arg::with_name("recursive")
-                     .short("r")
-                     .help("Scan `.bin` files in the provided directory, recursively"))
                 .arg(Arg::with_name("json")
                      .short("j")
-                     .help("Dump as JSON (with `-r`, output one object per `.bin` file)"))
+                     .help("Dump as JSON (output one object per `.bin` file)"))
                 )
             .subcommand(
                 SubCommand::with_name("unknown-hashes")
@@ -251,7 +249,6 @@ fn main() -> Result<()> {
         "bin" => {
             match_subcommand!((subm, subm) {
                 "dump" => {
-                    let path = subm.value_of("input").unwrap();
                     let hmappers = match subm.value_of("hashes") {
                         Some(dir) => BinHashMappers::from_dirpath(Path::new(dir))?,
                         _ => BinHashMappers::default(),
@@ -265,14 +262,17 @@ fn main() -> Result<()> {
                         Box::new(TextTreeSerializer::new(&mut writer, &hmappers).write_entries()?) as Box<dyn BinEntriesSerializer>
                     };
 
-                    if subm.is_present("recursive") {
-                        for path in bin_files_from_dir(path) {
+                    for path in subm.values_of("input").unwrap() {
+                        let path = Path::new(path);
+                        if path.is_dir() {
+                            for path in bin_files_from_dir(path) {
+                                let scanner = PropFile::scan_entries_from_path(path)?;
+                                serialize_bin_scanner(scanner, &mut *serializer)?;
+                            }
+                        } else {
                             let scanner = PropFile::scan_entries_from_path(path)?;
                             serialize_bin_scanner(scanner, &mut *serializer)?;
                         }
-                    } else {
-                        let scanner = PropFile::scan_entries_from_path(path)?;
-                        serialize_bin_scanner(scanner, &mut *serializer)?;
                     }
 
                     serializer.end()?;
