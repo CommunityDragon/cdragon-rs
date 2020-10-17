@@ -56,6 +56,13 @@ impl<'a, W: Write> JsonSerializer<'a, W> {
         }
     }
 
+    fn write_path_value(&mut self, h: BinPathValue) -> io::Result<()> {
+        match h.get_str(&self.hmappers) {
+            Some(s) => write!(self.writer, "\"{}\"", s),
+            _ => write!(self.writer, "\"{{{:x}}}\"", h),
+        }
+    }
+
     /// Write JSON string content, escape special chars
     fn write_escaped_json(&mut self, s: &str) -> io::Result<()> {
         let bytes = s.as_bytes();
@@ -166,6 +173,7 @@ impl<'a, W: Write> BinSerializer for JsonSerializer<'a, W> {
         Ok(())
     }
     fn write_hash(&mut self, v: &BinHash) -> io::Result<()> { self.write_hash_value(v.0) }
+    fn write_path(&mut self, v: &BinPath) -> io::Result<()> { self.write_path_value(v.0) }
     fn write_link(&mut self, v: &BinLink) -> io::Result<()> { self.write_entry_path(v.0) }
     fn write_flag(&mut self, v: &BinFlag) -> io::Result<()> { write!(self.writer, "{}", v.0) }
 
@@ -242,6 +250,7 @@ impl_bin_key_serializable!(BinS64, write_key_s64);
 impl_bin_key_serializable!(BinU64, write_key_u64);
 impl_bin_key_serializable!(BinString, write_string);
 impl_bin_key_serializable!(BinHash, write_hash);
+impl_bin_key_serializable!(BinPath, write_path);
 
 
 pub struct JsonEntriesSerializer<'a, W: Write> {

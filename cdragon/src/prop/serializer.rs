@@ -40,6 +40,7 @@ pub trait BinSerializer {
     fn write_color(&mut self, v: &BinColor) -> io::Result<()>;
     fn write_string(&mut self, v: &BinString) -> io::Result<()>;
     fn write_hash(&mut self, v: &BinHash) -> io::Result<()>;
+    fn write_path(&mut self, v: &BinPath) -> io::Result<()>;
     fn write_link(&mut self, v: &BinLink) -> io::Result<()>;
     fn write_flag(&mut self, v: &BinFlag) -> io::Result<()>;
 
@@ -96,6 +97,7 @@ impl_serializable!(BinMatrix, write_matrix);
 impl_serializable!(BinColor, write_color);
 impl_serializable!(BinString, write_string);
 impl_serializable!(BinHash, write_hash);
+impl_serializable!(BinPath, write_path);
 impl_serializable!(BinList, write_list);
 impl_serializable!(BinStruct, write_struct);
 impl_serializable!(BinEmbed, write_embed);

@@ -183,7 +183,7 @@ declare_hash_type! {
     WadEntryHash(u64) => ("{:016x}", compute_entry_hash)
 }
 
-fn compute_entry_hash(s: &str) -> u64 {
+pub fn compute_entry_hash(s: &str) -> u64 {
     let mut h = XxHash64::with_seed(0);
     h.write(s.as_bytes());
     h.finish()

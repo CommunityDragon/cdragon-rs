@@ -73,6 +73,13 @@ impl<'a, W: Write> TextTreeSerializer<'a, W> {
         }
     }
 
+    fn format_path_value(&self, h: BinPathValue) -> String {
+        match h.get_str(&self.hmappers) {
+            Some(s) => format!("'{}'", s),
+            _ => format!("{{{:x}}}", h),
+        }
+    }
+
     fn write_fields(&mut self, fields: &[BinField]) -> io::Result<()> {
         if fields.is_empty() {
             serialize!(self, "[]")?;
@@ -132,7 +139,8 @@ impl<'a, W: Write> TextTreeSerializer<'a, W> {
             BinType::Color => serialize_field!(BinColor),
             BinType::String => serialize_field!(BinString),
             BinType::Hash => serialize_field!(BinHash),
-            BinType::List => serialize_field!(BinList: [v] => "LIST({}) ", basic_bintype_name(v.vtype)),
+            BinType::Path => serialize_field!(BinPath),
+            BinType::List | BinType::List2 => serialize_field!(BinList: [v] => "LIST({}) ", basic_bintype_name(v.vtype)),
             BinType::Struct => serialize_field!(BinStruct: {v} => "STRUCT {} ", self.format_type_name(v.ctype)),
             BinType::Embed => serialize_field!(BinEmbed: {v} => "EMBED {} ", self.format_type_name(v.ctype)),
             BinType::Link => serialize_field!(BinLink),
@@ -181,6 +189,7 @@ impl<'a, W: Write> BinSerializer for TextTreeSerializer<'a, W> {
     fn write_color(&mut self, v: &BinColor) -> io::Result<()> { serialize!(self, "({}, {}, {}, {})", v.r, v.g, v.b, v.a) }
     fn write_string(&mut self, v: &BinString) -> io::Result<()> { serialize!(self, "'{}'", v.0) }
     fn write_hash(&mut self, v: &BinHash) -> io::Result<()> { serialize!(self, "{}", self.format_hash_value(v.0)) }
+    fn write_path(&mut self, v: &BinPath) -> io::Result<()> { serialize!(self, "{}", self.format_path_value(v.0)) }
     fn write_link(&mut self, v: &BinLink) -> io::Result<()> { serialize!(self, "{}", self.format_entry_path(v.0)) }
     fn write_flag(&mut self, v: &BinFlag) -> io::Result<()> { serialize!(self, "{}", v.0) }
 
@@ -271,6 +280,7 @@ fn basic_bintype_name(vtype: BinType) -> &'static str {
         BinType::Color => "COLOR",
         BinType::String => "STRING",
         BinType::Hash => "HASH",
+        BinType::Path => "PATH",
         BinType::Struct => "STRUCT",
         BinType::Embed => "EMBED",
         BinType::Link => "LINK",

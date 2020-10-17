@@ -17,6 +17,7 @@ use std::collections::HashSet;
 
 use crate::Result;
 use crate::hashes::HashMapper;
+use crate::wad::WadHashKind;
 pub use serializer::{BinSerializer, BinEntriesSerializer};
 pub use data::*;
 pub use parser::BinEntryScanner;
@@ -29,14 +30,15 @@ pub use guess_hashes::{BinHashFinder, BinHashGuesser};
 pub type BinHashMapper = HashMapper<u32>;
 
 /// Generic type to map `BinHashKind`
-pub struct BinHashKindMapping<T> {
+pub struct BinHashKindMapping<T, U> {
     pub entry_path: T,
     pub class_name: T,
     pub field_name: T,
     pub hash_value: T,
+    pub path_value: U,
 }
 
-impl<T> BinHashKindMapping<T> {
+impl<T, U> BinHashKindMapping<T, U> {
     /// Give access to a specific field from its kind
     #[inline]
     pub fn get(&self, kind: BinHashKind) -> &T {
@@ -60,20 +62,21 @@ impl<T> BinHashKindMapping<T> {
     }
 }
 
-impl<T: Default> Default for BinHashKindMapping<T> {
+impl<T: Default, U: Default> Default for BinHashKindMapping<T, U> {
     fn default() -> Self {
         Self {
             entry_path: T::default(),
             class_name: T::default(),
             field_name: T::default(),
             hash_value: T::default(),
+            path_value: U::default(),
         }
     }
 }
 
 
 /// Mapper for all kinds of bin hashes
-pub type BinHashMappers = BinHashKindMapping<BinHashMapper>;
+pub type BinHashMappers = BinHashKindMapping<BinHashMapper, HashMapper<u64>>;
 
 impl BinHashMappers {
     /// Create mapper, load all sub-mappers from a directory path
@@ -88,6 +91,7 @@ impl BinHashMappers {
         for kind in BinHashKind::variants() {
             self.get_mut(kind).load_path(path.join(kind.mapper_path()))?;
         }
+        self.path_value.load_path(path.join(WadHashKind::Game.mapper_path()))?;
         Ok(())
     }
 
@@ -96,6 +100,7 @@ impl BinHashMappers {
         for kind in BinHashKind::variants() {
             self.get(kind).write_path(path.join(kind.mapper_path()))?;
         }
+        self.path_value.write_path(path.join(WadHashKind::Game.mapper_path()))?;
         Ok(())
     }
 }
@@ -143,7 +148,7 @@ pub struct BinEntry {
     pub fields: Vec<BinField>,
 }
 
-pub type BinHashSets = BinHashKindMapping<HashSet<u32>>;
+pub type BinHashSets = BinHashKindMapping<HashSet<u32>, HashSet<u64>>;
 use gather_hashes::GatherHashes;
 
 impl BinEntry {

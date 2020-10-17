@@ -7,7 +7,8 @@ use super::{
 macro_rules! binvalue_map_with_hashes {
     ($b:expr, $t:ident, $e:expr) => (match $b {
         BinType::Hash => { type $t = BinHash; $e },
-        BinType::List => { type $t = BinList; $e },
+        // Note: Don't gather WAD path hashes
+        BinType::List | BinType::List2 => { type $t = BinList; $e },
         BinType::Struct => { type $t = BinStruct; $e },
         BinType::Embed => { type $t = BinEmbed; $e },
         BinType::Link => { type $t = BinLink; $e },

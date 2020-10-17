@@ -386,7 +386,6 @@ impl<'a> BinHashGuesser<'a> {
     // Guess `Emblems/{N}` from `data/emblems.bin`
     // Get spells, etc. from non-character .bin (if any)
 
-
     /// Helper to filter "good" bin entries from a `WalkDir`
     fn walk_bins(walk: WalkDir) -> impl Iterator<Item=DirEntry> {
         walk.into_iter()

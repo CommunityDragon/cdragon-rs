@@ -1,6 +1,7 @@
 use std::any::Any;
 use derive_try_from_primitive::TryFromPrimitive;
 use super::{BinHashMappers, compute_binhash};
+use crate::wad;
 
 
 /// Field value for a struct or an embed
@@ -86,6 +87,15 @@ declare_bin_hash! {
     BinHashValue => BinHashKind::HashValue
 }
 
+declare_hash_type! {
+    BinPathValue(u64) => ("{:16x}", wad::compute_entry_hash)
+}
+impl BinPathValue {
+    pub fn get_str<'a>(&self, mapper: &'a BinHashMappers) -> Option<&'a str> {
+        mapper.path_value.get(self.hash)
+    }
+}
+
 
 /// Trait for values enumerated in `BinType`
 pub trait BinValue {}
@@ -129,6 +139,7 @@ declare_bintype_struct!{ BinMatrix([[f32; 4]; 4]) [] }
 pub struct BinColor { pub r: u8, pub g: u8, pub b: u8, pub a: u8 }
 declare_bintype_struct!{ BinString(String) [Eq,PartialEq,Hash] }
 declare_bintype_struct!{ BinHash(BinHashValue) [Eq,PartialEq,Hash] }
+declare_bintype_struct!{ BinPath(BinPathValue) [Eq,PartialEq,Hash] }
 declare_bintype_struct!{ BinLink(BinEntryPath) [Eq,PartialEq,Hash] }
 declare_bintype_struct!{ BinFlag(bool) [Eq,PartialEq,Hash] }
 
@@ -222,6 +233,7 @@ impl BinValue for BinMatrix {}
 impl BinValue for BinColor {}
 impl BinValue for BinString {}
 impl BinValue for BinHash {}
+impl BinValue for BinPath {}
 impl BinValue for BinList {}
 impl BinValue for BinStruct {}
 impl BinValue for BinEmbed {}
@@ -256,12 +268,15 @@ pub enum BinType {
     Color = 15,
     String = 16,
     Hash = 17,
-    List = 18,
-    Struct = 19,
-    Embed = 20,
-    Link = 21,
-    Option = 22,
-    Map = 23,
-    Flag = 24,
+    Path = 18,  // introduced in 10.23
+    // Complex types (shifted to 0x80+ in 9.23)
+    List = 19,
+    List2 = 20,  // handled as List, introduced in 10.8
+    Struct = 21,
+    Embed = 22,
+    Link = 23,
+    Option = 24,
+    Map = 25,
+    Flag = 26,
 }
 

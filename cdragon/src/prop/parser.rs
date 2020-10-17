@@ -331,12 +331,6 @@ fn parse_binstring(i: &[u8]) -> IResult<&[u8], String> {
 }
 
 
-impl<H: HashDef + From<u32>> BinParsable for H {
-    fn binparse(i: &[u8]) -> IResult<&[u8], Self> {
-        map(le_u32, Self::from)(i)
-    }
-}
-
 impl BinParsable for BinField {
     fn binparse(i: &[u8]) -> IResult<&[u8], Self> {
         let (i, (name, vtype)) = tuple((BinFieldName::binparse, BinType::binparse))(i)?;
@@ -344,6 +338,12 @@ impl BinParsable for BinField {
         Ok((i, Self { name, vtype, value }))
     }
 }
+
+impl_binparsable!(BinHashValue, map(le_u32, |v| Self::from(v)));
+impl_binparsable!(BinEntryPath, map(le_u32, |v| Self::from(v)));
+impl_binparsable!(BinClassName, map(le_u32, |v| Self::from(v)));
+impl_binparsable!(BinFieldName, map(le_u32, |v| Self::from(v)));
+impl_binparsable!(BinPathValue, map(le_u64, |v| Self::from(v)));
 
 impl_binparsable!(BinNone, map(take(6usize), |_| Self()));
 impl_binparsable!(BinBool, map(le_u8, |v| Self(v != 0u8)));
@@ -434,15 +434,14 @@ impl BinParsable for BinMap {
 }
 
 impl_binparsable!(BinHash, =BinHashValue::binparse);
+impl_binparsable!(BinPath, =BinPathValue::binparse);
 impl_binparsable!(BinLink, =BinEntryPath::binparse);
 impl_binparsable!(BinFlag, map(le_u8, |v| Self(v != 0u8)));
 impl_binparsable!(BinString, =parse_binstring);
-impl_binparsable!(BinType, map(le_u8, |v| {
-    let v2 = match v {
-        0x80 => 18,
-        v if v > 0x80 => v - 0x80 + 17,
-        v => v
-    };
-    Self::try_from(v2).expect("invalid BIN type")
+impl_binparsable!(BinType, map(le_u8, |mut v| {
+    if v >= 0x80 {
+        v = v - 0x80 + BinType::List as u8;
+    }
+    Self::try_from(v).expect("invalid BIN type")
 }));
 
