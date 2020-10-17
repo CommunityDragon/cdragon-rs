@@ -4,9 +4,9 @@ use std::io::{Read, BufRead, BufReader, BufWriter};
 use std::path::Path;
 use reqwest::{Client, Url, Response, header, IntoUrl};
 use serde::{Deserialize, Serialize};
-use crate::Result;
-use crate::rman::FileBundleRanges;
-use crate::fstools;
+use cdragon_utils::Result;
+use cdragon_utils::fstools;
+use cdragon_rman::FileBundleRanges;
 // Re-exports
 pub use serde_json;
 

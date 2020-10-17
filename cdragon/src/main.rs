@@ -5,37 +5,43 @@ use std::path::{Path, PathBuf};
 use clap::{App, SubCommand, Arg, AppSettings};
 use walkdir::{WalkDir, DirEntry};
 
-use cdragon::prop::{
+use cdragon_prop::{
     PropFile,
     BinHashMappers,
     BinHashSets,
     BinHashKind,
     BinSerializer,
     BinEntriesSerializer,
-    BinHashFinder,
-    BinHashGuesser,
     TextTreeSerializer,
     JsonSerializer,
 };
-use cdragon::rman::{
+use cdragon_rman::{
     Rman,
     FileEntry,
 };
-use cdragon::wad::{
+use cdragon_wad::{
     Wad,
     WadEntry,
     WadHashMapper,
     WadHashKind,
 };
-use cdragon::cdn::CdnDownloader;
-use cdragon::utils::{
+use cdragon_cdn::CdnDownloader;
+use cdragon_utils::Result;
+use cdragon_utils::fstools::canonicalize_path;
+
+mod utils;
+use utils::{
     PathPattern,
     HashValuePattern,
 };
-use cdragon::Result;
-use cdragon::fstools::canonicalize_path;
 
-type BinEntryScanner = cdragon::prop::BinEntryScanner<io::BufReader<fs::File>>;
+mod guess_bin_hashes;
+use guess_bin_hashes::{
+    BinHashFinder,
+    BinHashGuesser,
+};
+
+type BinEntryScanner = cdragon_prop::BinEntryScanner<io::BufReader<fs::File>>;
 
 
 fn is_binfile_direntry(entry: &DirEntry) -> bool{

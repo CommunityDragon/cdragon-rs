@@ -130,7 +130,7 @@ impl<T> HashMapper<T> where T: Num + Eq + Hash + fmt::LowerHex {
 /// This trait is implemented by types created with `declare_hash_type!`.
 /// This allows to define all the hash definitions without implementing the type itself, allowing
 /// one to add its own elements to the type.
-pub(crate) trait HashDef: Sized {
+pub trait HashDef: Sized {
     type T: Sized;  // Integer type
     const HASHER: fn(&str) -> Self::T;
 
@@ -149,6 +149,7 @@ pub(crate) trait HashDef: Sized {
 
 
 /// Declare a hash value type, wrapped into a unique type
+#[macro_export]
 macro_rules! declare_hash_type {
     (
         $(#[$meta:meta])*

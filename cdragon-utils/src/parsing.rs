@@ -4,7 +4,7 @@ pub type IResult<I, O> = nom::IResult<I, O, ()>;
 
 // `iresult.into()?` cannot infer error type to convert to
 // Use `iresult.map_err(into_err)` instead
-pub(crate) fn into_err(e: nom::Err<()>) -> ParseError {
+pub fn into_err(e: nom::Err<()>) -> ParseError {
     ParseError::from(e)
 }
 

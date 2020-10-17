@@ -1,0 +1,15 @@
+[package]
+name = "cdragon-utils"
+version = "0.1.0"
+authors = ["Benoît Ryder <benoit@ryder.fr>"]
+edition = "2018"
+
+[dependencies]
+num-traits = "0.2"
+nom = "5"
+derive-try-from-primitive = "0.1"
+walkdir = "2"
+memmap = "0.7"
+serde = "1.0"
+serde_json = "1.0"
+

@@ -1,7 +1,7 @@
 use std::any::Any;
 use derive_try_from_primitive::TryFromPrimitive;
 use super::{BinHashMappers, compute_binhash};
-use crate::wad;
+use cdragon_utils::declare_hash_type;
 
 
 /// Field value for a struct or an embed
@@ -88,7 +88,7 @@ declare_bin_hash! {
 }
 
 declare_hash_type! {
-    BinPathValue(u64) => ("{:16x}", wad::compute_entry_hash)
+    BinPathValue(u64) => ("{:16x}", cdragon_wad::compute_entry_hash)
 }
 impl BinPathValue {
     pub fn get_str<'a>(&self, mapper: &'a BinHashMappers) -> Option<&'a str> {

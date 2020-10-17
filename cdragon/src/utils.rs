@@ -2,7 +2,7 @@
 
 use std::hash::Hash;
 use num_traits::Num;
-use crate::hashes::HashMapper;
+use cdragon_utils::hashes::HashMapper;
 
 
 /// Match strings against pattern with `*` wildcards

@@ -9,9 +9,9 @@ use nom::{
 };
 use super::{PropFile, BinEntry, BinEntryHeader};
 use super::data::*;
-use crate::Result;
-use crate::parsing::{ParseError, into_err, IResult};
-use crate::hashes::HashDef;
+use cdragon_utils::Result;
+use cdragon_utils::parsing::{ParseError, into_err, IResult};
+use cdragon_utils::hashes::HashDef;
 
 
 /// Trait satisfied by values that can be parsed from binary data

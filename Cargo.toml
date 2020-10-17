@@ -1,9 +1,19 @@
 [workspace]
 members = [
     "cdragon",
+    "cdragon-cdn",
+    "cdragon-prop",
+    "cdragon-rman",
+    "cdragon-utils",
+    "cdragon-wad",
 ]
 
 default-members = [
     "cdragon",
+    "cdragon-cdn",
+    "cdragon-prop",
+    "cdragon-rman",
+    "cdragon-utils",
+    "cdragon-wad",
 ]
 

@@ -13,10 +13,11 @@ use nom::{
 };
 use derive_try_from_primitive::TryFromPrimitive;
 use twox_hash::XxHash64;
-use crate::Result;
-use crate::hashes::HashMapper;
-use crate::fstools;
-use crate::parsing::{ParseError, into_err};
+use cdragon_utils::Result;
+use cdragon_utils::hashes::HashMapper;
+use cdragon_utils::fstools;
+use cdragon_utils::parsing::{ParseError, into_err};
+use cdragon_utils::declare_hash_type;
 
 
 /// Riot WAD archive file

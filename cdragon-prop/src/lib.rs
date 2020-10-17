@@ -7,23 +7,21 @@ mod serializer;
 mod text_tree;
 mod json;
 mod gather_hashes;
-mod guess_hashes;
-mod data;
+pub mod data;
 
 use std::io;
 use std::fs;
 use std::path::Path;
 use std::collections::HashSet;
 
-use crate::Result;
-use crate::hashes::HashMapper;
-use crate::wad::WadHashKind;
+use cdragon_utils::Result;
+use cdragon_utils::hashes::HashMapper;
+use cdragon_wad::WadHashKind;
 pub use serializer::{BinSerializer, BinEntriesSerializer};
 pub use data::*;
 pub use parser::BinEntryScanner;
 pub use text_tree::TextTreeSerializer;
 pub use json::JsonSerializer;
-pub use guess_hashes::{BinHashFinder, BinHashGuesser};
 
 
 /// Mapper used for bin hashes

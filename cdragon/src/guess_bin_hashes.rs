@@ -1,16 +1,18 @@
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
-use super::{
+use walkdir::{WalkDir, DirEntry};
+use cdragon_utils::Result;
+use cdragon_prop::{
     PropFile,
     BinHashKind,
     BinHashSets,
     BinHashMappers,
     compute_binhash,
     compute_binhash_const,
-    Result,
+    binh,
+    binget,
 };
-use super::data::*;
-use walkdir::{WalkDir, DirEntry};
+use cdragon_prop::data::*;
 
 
 /// Base object to check bin hashes

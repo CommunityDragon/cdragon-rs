@@ -9,9 +9,9 @@ use nom::{
     bytes::complete::tag,
     sequence::tuple,
 };
-use crate::Result;
-use crate::parsing::{ParseError, into_err};
-use crate::locale::Locale;
+use cdragon_utils::Result;
+use cdragon_utils::parsing::{ParseError, into_err};
+use cdragon_utils::locale::Locale;
 
 
 /// Riot manifest file
