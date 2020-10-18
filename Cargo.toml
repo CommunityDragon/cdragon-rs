@@ -6,6 +6,8 @@ members = [
     "cdragon-rman",
     "cdragon-utils",
     "cdragon-wad",
+    "cdragon-binviewer",
+    "cdragon-binviewer-tools",
 ]
 
 default-members = [
@@ -15,5 +17,6 @@ default-members = [
     "cdragon-rman",
     "cdragon-utils",
     "cdragon-wad",
+    "cdragon-binviewer-tools",
 ]
 

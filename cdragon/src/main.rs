@@ -27,7 +27,6 @@ use cdragon_wad::{
 };
 use cdragon_cdn::CdnDownloader;
 use cdragon_utils::Result;
-use cdragon_utils::fstools::canonicalize_path;
 
 mod utils;
 use utils::{
@@ -44,7 +43,7 @@ use guess_bin_hashes::{
 type BinEntryScanner = cdragon_prop::BinEntryScanner<io::BufReader<fs::File>>;
 
 
-fn is_binfile_direntry(entry: &DirEntry) -> bool{
+fn is_binfile_direntry(entry: &DirEntry) -> bool {
     let ftype = entry.file_type();
     if ftype.is_file() {
         if entry.path().extension().map(|s| s == "bin").unwrap_or(false) {
@@ -103,6 +102,24 @@ fn wad_and_hmapper_from_paths(wad_path: &str, hashes_dir: Option<&str>) -> Resul
         }
     }
     Ok((wad, reader, hmapper))
+}
+
+/// Canonicalize a path, avoid errors on long file names
+///
+/// `canonicalize()` is needed to open long files on Windows, but it still fails if the path is too
+/// long. `canonicalize()` the directory name then manually join the file name.
+pub fn canonicalize_path(path: &Path) -> std::io::Result<PathBuf> {
+    if cfg!(target_os = "windows") {
+        if let Some(mut parent) = path.parent() {
+            if let Some(base) = path.file_name() {
+                if parent.as_os_str() == "" {
+                    parent = Path::new(".");
+                }
+                return Ok(parent.canonicalize()?.join(base))
+            }
+        }
+    }
+    Ok(path.to_path_buf())
 }
 
 

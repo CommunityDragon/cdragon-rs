@@ -4,11 +4,13 @@ use std::io::{Read, BufRead, BufReader, BufWriter};
 use std::path::Path;
 use reqwest::{Client, Url, Response, header, IntoUrl};
 use serde::{Deserialize, Serialize};
-use cdragon_utils::Result;
-use cdragon_utils::fstools;
+use cdragon_utils::{GuardedFile, Result};
 use cdragon_rman::FileBundleRanges;
 // Re-exports
 pub use serde_json;
+
+mod guarded_map;
+use guarded_map::GuardedMmap;
 
 
 /// CDN from which game files can be downloaded
@@ -67,7 +69,7 @@ impl CdnDownloader {
             .error_for_status()?;
         //TODO check if buffering is required for reponse
 
-        let mut gfile = fstools::GuardedFile::create(output)?;
+        let mut gfile = GuardedFile::create(output)?;
         {
             let mut writer = BufWriter::new(gfile.as_file_mut());
             std::io::copy(&mut response, &mut writer)?;
@@ -80,7 +82,7 @@ impl CdnDownloader {
     /// Download bundle chunks to a file
     pub fn download_bundle_chunks(&self, file_size: u64, bundle_ranges: &FileBundleRanges, path: &Path) -> Result<()> {
         // Open output file, map it to memory
-        let mut mmap = fstools::GuardedMmap::create(path, file_size)?;
+        let mut mmap = GuardedMmap::create(path, file_size)?;
 
         // Download chunks, bundle per bundle
         for (bundle_id, ranges) in bundle_ranges {

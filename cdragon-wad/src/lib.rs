@@ -15,7 +15,7 @@ use derive_try_from_primitive::TryFromPrimitive;
 use twox_hash::XxHash64;
 use cdragon_utils::Result;
 use cdragon_utils::hashes::HashMapper;
-use cdragon_utils::fstools;
+use cdragon_utils::GuardedFile;
 use cdragon_utils::parsing::{ParseError, into_err};
 use cdragon_utils::declare_hash_type;
 
@@ -161,7 +161,7 @@ impl WadEntry {
 
     /// Extract entry to the given path
     pub fn extract<R: Read + Seek>(&self, reader: &mut R, path: &Path) -> Result<()> {
-        let mut gfile = fstools::GuardedFile::create(path)?;
+        let mut gfile = GuardedFile::create(path)?;
         let mut reader = self.read(reader)?;
         std::io::copy(&mut *reader, gfile.as_file_mut())?;
         gfile.persist();

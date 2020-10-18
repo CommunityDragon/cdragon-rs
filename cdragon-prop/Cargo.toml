@@ -11,3 +11,6 @@ nom = "5"
 derive-try-from-primitive = "0.1"
 walkdir = "2"
 
+[features]
+wasm = ["cdragon-wad/wasm"]
+

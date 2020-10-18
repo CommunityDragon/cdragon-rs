@@ -1,0 +1,21 @@
+[package]
+name = "cdragon-binviewer"
+version = "0.1.0"
+authors = ["Benoît Ryder <benoit@ryder.fr>"]
+edition = "2018"
+workspace = ".."
+
+[dependencies]
+cdragon = { path = "../cdragon" }
+cdragon-prop = { path = "../cdragon-prop" }
+log = "0.4"
+web_logger = "0.1"
+yew = "0.8"
+stdweb = "0.4"
+regex = "1"
+byteorder = "1"
+
+[features]
+default = ["wasm"]
+wasm = ["cdragon-prop/wasm"]
+

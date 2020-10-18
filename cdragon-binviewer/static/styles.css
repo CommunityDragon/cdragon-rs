@@ -1,0 +1,134 @@
+body {
+  font-size: 115%;
+  padding: 0.5ex 1ex;
+}
+
+a {
+  color: #0040d0;
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+#search {
+  margin-bottom: 2ex;
+  margin-left: 1em;
+  margin-right: 1em;
+}
+
+#search > input {
+  font-size: 105%;
+  display: block;
+  width: 100%;
+  padding: 0.8ex 1.5ex;
+  border: 1px solid #c0c0c0;
+  border-radius: 0.5ex;
+  color: #303030;
+  background-color: white;
+}
+#search > input:focus {
+  border-color: #80bfff;
+  box-shadow: 0 0 0 .4ex #0080ff40;
+}
+
+#search p {
+  font-size: 75%;
+  margin: 0.5em 1em;
+}
+
+
+#bindata-content {
+  margin: 0;
+  font-family: monospace;
+}
+
+#bindata-content ul {
+  list-style: none;
+  padding-left: 1em;
+}
+
+.bin-entry-header {
+  font-size: 105%;
+  font-weight: bold;
+}
+
+#bindata-content li {
+  margin-top: 0.1em;
+  margin-bottom: 0.1em;
+}
+
+.bin-entry {
+  background-color: white;
+  border-top: 1px solid #d0d0d0;
+  padding: 0.1em 0;
+  margin: 2px;
+}
+
+.bin-item-header {
+  cursor: pointer;
+}
+
+.bin-item-header::before,
+.bin-item-leaf::before {
+  content: "\25BC";
+  margin-left: -1em;
+  margin-right: 0.3em;
+  font-size: 80%;
+  display: inline-block;
+  color: #404040;
+}
+.bin-item-leaf::before {
+  opacity: 0;
+}
+
+.bin-item-header.collapsed::before {
+  transform: rotate(-90deg);  
+}
+
+.bin-item-header.collapsed ~ * {
+  display: none;
+}
+
+
+.bin-entry-path { color: #000060; }
+.bin-entry-type { color: #004000; cursor: pointer; }
+.bin-entry-type:hover { color: #009900; }
+.bin-struct-type { color: #006000; }
+.bin-field-name { color: #000080; }
+.bin-field-type { color: #006000; }
+.bin-link-value { color: #800000; cursor: pointer; }
+.bin-link-value:hover { color: #c00000; }
+.bin-hash-value { }
+.bin-path-value { }
+
+.bin-entry-path, 
+.bin-entry-type,
+.bin-struct-type,
+.bin-field-name,
+.bin-field-type {
+  margin-right: 0.4em;
+  padding: 0.1em 0.2em;
+  display: inline-block;
+}
+
+.bin-field-type {
+  margin-right: 0.6em;
+}
+
+a.tooltipped {
+  position: relative;
+}
+a.tooltipped > img {
+  z-index: 10;
+  max-height: 150px;
+  max-width: 150px;
+  position: absolute; 
+  left: 0;
+  display: none;
+  border: 1px solid black;
+}
+a.tooltipped:hover > img {
+  display: block;
+}
+
