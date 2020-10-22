@@ -142,6 +142,7 @@ impl<'a> BinHashGuesser<'a> {
         let name = name.to_ascii_lowercase();
         let path = self.root.join("data/characters").join(&name);
 
+        let mut cname: Option<String> = None;
         let mut prefix: Option<String> = None;
         // Collect spell and ability names in a shared map
         let mut spell_names = HashMap::<BinEntryPath, String>::new();
@@ -161,11 +162,15 @@ impl<'a> BinHashGuesser<'a> {
         for entry in scanner.filter_parse(|_, htype| FILTERED_TYPES.contains(&htype.hash)) {
             let entry = entry?;
             if entry.ctype == binh!("CharacterRecord") || entry.ctype == binh!("TFTCharacterRecord") {
-                let cname = binget!(entry => mCharacterName(BinString));
-                if cname.is_none() {
-                    break;  // no character name, no need to continue
-                }
-                prefix = Some(format!("Characters/{}", cname.unwrap().0));
+                cname = {
+                    if let Some(s) = binget!(entry => mCharacterName(BinString)) {
+                        Some(s.0.clone())
+                    } else {
+                        break;  // no character name, no need to continue
+                    }
+                };
+                let cname = cname.as_ref().unwrap();
+                prefix = Some(format!("Characters/{}", cname));
                 let prefix = prefix.as_ref().unwrap();
 
                 // Now that we have the capitalized prefix, guess common entries.
@@ -178,6 +183,7 @@ impl<'a> BinHashGuesser<'a> {
                     format!("{}/CharacterRecords/URF", prefix),
                     format!("{}/Skins/Meta", prefix),
                     format!("{}/Skins/Root", prefix),
+                    format!("{}/CAC/{}_Base", prefix, cname),
                 ].into_iter());
 
                 // Spells can be found in different "directories", for instance:
@@ -215,9 +221,10 @@ impl<'a> BinHashGuesser<'a> {
 
         // Some characters are (almost) empty, ignore them
         // Note that they usually have a `/Skins/Meta` entry which will not be guessed.
-        if prefix.is_none() {
+        if cname.is_none() {
             return Ok(());
         }
+        let cname = cname.unwrap();
         let prefix = prefix.unwrap();
 
         // Check all collected spell names, just in case
@@ -238,11 +245,14 @@ impl<'a> BinHashGuesser<'a> {
             if let Some(s) = skin_name.get_mut(0..1) {
                 s.make_ascii_uppercase();
             }
-            let prefix = format!("{}/Skins/{}", prefix, skin_name);
+            let sprefix = format!("{}/Skins/{}", prefix, skin_name);
 
             self.finder.check_from_iter(BinHashKind::EntryPath, vec![
-                format!("{}", prefix),
-                format!("{}/Resources", prefix),
+                format!("{}", sprefix),
+                format!("{}/Resources", sprefix),
+                // Try both `Skins0X` and `SkinsX`
+                format!("{}/CAC/{}_{}", prefix, cname, skin_name),
+                format!("{}/CAC/{}_{}", prefix, cname, skin_name.replace("Skins", "Skins0")),
             ].into_iter());
 
             // Parse all entries, don't bother filtering
