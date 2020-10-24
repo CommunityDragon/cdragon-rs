@@ -2,6 +2,7 @@
 
 use std::io::{Read, BufRead, BufReader, BufWriter};
 use std::path::Path;
+use std::collections::HashMap;
 use reqwest::{Client, Url, Response, header, IntoUrl};
 use cdragon_utils::{GuardedFile, Result};
 use cdragon_rman::FileBundleRanges;
@@ -157,6 +158,87 @@ impl CdnDownloader {
 }
 
 
+#[derive(Debug)]
+pub enum Product {
+    /// League of Legends client
+    LolClient,
+    /// League of Legends game application
+    LolGame,
+}
+
+/// Information on a specific product release
+///
+/// This is a common format for all products. Available information are different for each one.
+#[derive(Debug)]
+pub struct ReleaseInfo {
+    pub product: Product,
+    /// URL of the manifest with patches to download
+    pub manifest_url: String,
+    /// Metadata, product-specific
+    pub metadata: HashMap<&'static str, String>,
+}
+
+
+/// Get the latest release information of LoL client
+pub fn get_latest_lol_client_release(client: &mut Client, patchline: &str, region: &str) -> Result<ReleaseInfo> {
+    let url = "https://clientconfig.rpg.riotgames.com/api/v1/config/public?namespace=keystone.products.league_of_legends.patchlines";
+    let response = client
+        .get(url)
+        .send()?
+        .error_for_status()?;
+    let data: serde_json::Value = serde_json::from_reader(response)?;
+    let root_key = format!("keystone.products.league_of_legends.patchlines.{}", patchline);
+
+    let data = &data[root_key];
+    let configs = data["configurations"]
+        .as_array().ok_or(serde_error("invalid 'configuration' value"))?;
+    let config = configs.iter().find(|v| match &v["id"] {
+        serde_json::Value::String(s) => s == region,
+        _ => false,
+    }).ok_or(serde_error("region not found"))?;
+    let manifest_url = config["patch_url"]
+        .as_str().ok_or(serde_error("invalid 'patch_url' value"))?;
+
+    let mut metadata = HashMap::new();
+    metadata.insert("patchline", patchline.into());
+    metadata.insert("region", region.into());
+
+    Ok(ReleaseInfo {
+        product: Product::LolClient,
+        manifest_url: manifest_url.into(),
+        metadata
+    })
+}
+
+/// Get the latest release information of LoL game
+pub fn get_latest_lol_game_release(client: &mut Client, platform: &str) -> Result<ReleaseInfo> {
+    let url = format!("https://sieve.services.riotcdn.net/api/v1/products/lol/version-sets/{}?q[platform]=windows&q[published]=true", platform);
+    let response = client
+        .get(&url)
+        .send()?
+        .error_for_status()?;
+    let data: serde_json::Value = serde_json::from_reader(response)?;
+
+    // Note: assume there is only one result
+    let data = &data[0];
+    let labels = &data["release"]["labels"];
+    let revision = labels["riot:revision"]["values"][0]
+        .as_str().ok_or(serde_error("unexpected 'riot:revision' type"))?;
+    let manifest_url = data["download"]["url"]
+        .as_str().ok_or(serde_error("unexpected 'download.url' type"))?;
+
+    let mut metadata = HashMap::new();
+    metadata.insert("platform", platform.into());
+    metadata.insert("revision", revision.into());
+
+    Ok(ReleaseInfo {
+        product: Product::LolClient,
+        manifest_url: manifest_url.into(),
+        metadata,
+    })
+}
+
+
 /// Build Range header value from a list of ranges
 fn build_range_header(ranges: &[(u32, u32)]) -> String {
     let http_ranges = ranges
@@ -165,5 +247,11 @@ fn build_range_header(ranges: &[(u32, u32)]) -> String {
         .collect::<Vec<String>>()
         .join(",");
     format!("bytes={}", http_ranges)
+}
+
+/// Build a custom serde error, used when parsing JSON data
+fn serde_error<T: std::fmt::Display>(msg: T) -> serde_json::Error {
+    use serde::de::Error;
+    serde_json::Error::custom(msg)
 }
 
