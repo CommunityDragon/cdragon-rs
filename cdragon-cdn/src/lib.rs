@@ -3,7 +3,6 @@
 use std::io::{Read, BufRead, BufReader, BufWriter};
 use std::path::Path;
 use reqwest::{Client, Url, Response, header, IntoUrl};
-use serde::{Deserialize, Serialize};
 use cdragon_utils::{GuardedFile, Result};
 use cdragon_rman::FileBundleRanges;
 // Re-exports
@@ -38,18 +37,6 @@ impl CdnDownloader {
     /// Build a bundle URL path from its ID
     pub fn bundle_path(bundle_id: u64) -> String {
         format!("channels/public/bundles/{:016X}.bundle", bundle_id)
-    }
-
-    /// Fetch information on the current release of a channel
-    pub fn channel_release_info(&self, channel: &str) -> Result<ReleaseInfo> {
-        let path = format!("channels/public/{}.json", channel);
-        let url = self.url.join(&path)?;
-        let response = self.client
-            .get(url)
-            .send()?
-            .error_for_status()?;
-        let info = serde_json::from_reader(response)?;
-        Ok(info)
     }
 
     /// Download a CDN path to a file
@@ -167,21 +154,6 @@ impl CdnDownloader {
 
         Ok(())
     }
-}
-
-/// Information on a League release
-///
-/// These information are retrieve from a JSON file, served by the CDN.
-#[derive(Deserialize, Serialize, Debug)]
-pub struct ReleaseInfo {
-    /// Date of the release, as an ISO 8601 datetime
-    pub timestamp: String,
-    /// Release version
-    pub version: u16,
-    /// URL of the manifest for client files
-    pub client_patch_url: String,
-    /// URL of the manifest for game files
-    pub game_patch_url: String,
 }
 
 
