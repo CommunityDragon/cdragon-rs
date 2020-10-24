@@ -69,35 +69,6 @@ impl<'a> BinHashGuesser<'a> {
         Self { root, finder }
     }
 
-    /// Find all "top-level" character names from Character and derived entries
-    ///
-    /// Returned characters "additionalCharacters".
-    pub fn collect_base_character_names(&self) -> Result<Vec<String>> {
-        let mut names = Vec::new();
-
-        let paths = [
-            "data/maps/shipping/common/common.bin",
-            "data/maps/shipping/map11/map11.bin",
-            "data/maps/shipping/map12/map12.bin",
-            "data/maps/shipping/map21/map21.bin",
-            "data/maps/shipping/map22/map22.bin",
-            "global/champions/champions.bin",
-        ];
-        let is_char_type = |_, htype| htype == binh!("Character") || htype == binh!("Champion") || htype == binh!("Companion");
-
-        for path in &paths {
-            let scanner = PropFile::scan_entries_from_path(self.root.join(path))?;
-            for entry in scanner.filter_parse(is_char_type) {
-                let entry = entry?;
-                if let Some(name) = entry.getv::<BinString>(binh!("name")) {
-                    names.push(name.0.clone());
-                }
-            }
-        }
-
-        Ok(names)
-    }
-
     /// Find character names, based on `data/characters/` subdirectories
     pub fn collect_character_names(&self) -> Vec<String> {
         WalkDir::new(self.root.join("data/characters")).max_depth(1)
