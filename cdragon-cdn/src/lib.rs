@@ -12,6 +12,8 @@ pub use serde_json;
 mod guarded_map;
 use guarded_map::GuardedMmap;
 
+pub mod storage;
+
 
 /// CDN from which game files can be downloaded
 pub struct CdnDownloader {
@@ -38,6 +40,11 @@ impl CdnDownloader {
     /// Build a bundle URL path from its ID
     pub fn bundle_path(bundle_id: u64) -> String {
         format!("channels/public/bundles/{:016X}.bundle", bundle_id)
+    }
+
+    /// Build a manifest URL path from its ID
+    pub fn manifest_path(manifest_id: u64) -> String {
+        format!("channels/public/releases/{:016X}.manifest", manifest_id)
     }
 
     /// Download a CDN path to a file
