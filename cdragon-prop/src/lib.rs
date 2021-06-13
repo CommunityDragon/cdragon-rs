@@ -191,3 +191,10 @@ pub const fn compute_binhash_const(s: &str) -> u32 {
     return h;
 }
 
+
+/// Files known to not be PROP files, despite their extension
+pub const NON_PROP_BASENAMES: &'static [&str]  = &[
+    "atlast_info.bin",
+    "tftoutofgamecharacterdata.bin",
+    "tftmapcharacterlists.bin",
+];

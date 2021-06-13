@@ -5,6 +5,7 @@ use walkdir::{WalkDir, DirEntry};
 use clap::{App, SubCommand, Arg};
 use byteorder::{LittleEndian, WriteBytesExt};
 use cdragon_prop::{
+    NON_PROP_BASENAMES,
     BinEntryPath,
     BinClassName,
     PropFile,
@@ -18,7 +19,9 @@ fn is_binfile_direntry(entry: &DirEntry) -> bool {
     if ftype.is_file() {
         if entry.path().extension().map(|s| s == "bin").unwrap_or(false) {
             // Some files are not actual 'PROP' files
-            entry.file_name() != "tftoutofgamecharacterdata.bin"
+            entry.file_name().to_str()
+                .map(|s| !NON_PROP_BASENAMES.contains(&s))
+                .unwrap_or(false)
         } else {
             false
         }

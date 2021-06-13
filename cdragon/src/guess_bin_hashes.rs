@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use walkdir::{WalkDir, DirEntry};
 use cdragon_utils::Result;
 use cdragon_prop::{
+    NON_PROP_BASENAMES,
     PropFile,
     BinHashKind,
     BinHashSets,
@@ -373,8 +374,12 @@ impl<'a> BinHashGuesser<'a> {
     fn walk_bins(walk: WalkDir) -> impl Iterator<Item=DirEntry> {
         walk.into_iter()
             .filter_map(|e| e.ok())
-            .filter(|e| e.path().extension().map_or(false, |s| s == "bin") && e.file_name() != "tftoutofgamecharacterdata.bin")
-
+            .filter(|e| {
+                e.path().extension().map_or(false, |s| s == "bin") &&
+                e.file_name().to_str()
+                    .map(|s| !NON_PROP_BASENAMES.contains(&s))
+                    .unwrap_or(false)
+            })
     }
 }
 
