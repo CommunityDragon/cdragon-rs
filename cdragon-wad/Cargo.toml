@@ -2,15 +2,15 @@
 name = "cdragon-wad"
 version = "0.1.0"
 authors = ["Benoît Ryder <benoit@ryder.fr>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 cdragon-utils = { path = "../cdragon-utils" }
 derive-try-from-primitive = "0.1"
-nom = "5"
-twox-hash = "1.5"
-zstd = "0.5"
-serde_json = "1.0"
+nom = "7"
+twox-hash = "1.6"
+zstd = "0.11"
+serde_json = "1"
 
 [features]
 wasm = ["zstd/wasm"]

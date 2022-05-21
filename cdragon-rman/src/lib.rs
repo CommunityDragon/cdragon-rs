@@ -92,7 +92,7 @@ impl Rman {
         let version = {
             let mut buf = [0u8; MAGIC_VERSION_LEN];
             reader.read_exact(&mut buf)?;
-            let (_, (_, major, minor)) = tuple((tag("RMAN"), le_u8, le_u8))(&buf).map_err(into_err)?;
+            let (_, (_, major, minor)) = tuple((tag("RMAN"), le_u8, le_u8))(&buf[..]).map_err(into_err)?;
             if (major, minor) != (2, 0) {
                 return Err(ParseError::InvalidData(format!("unsupported version: {}.{}", major, minor)).into());
             }
@@ -103,7 +103,7 @@ impl Rman {
             let mut buf = [0u8; FIELDS_LEN];
             reader.read_exact(&mut buf)?;
             let (_, (flags, offset, zstd_length, manifest_id, _body_length)) =
-                tuple((le_u16, le_u32, le_u32, le_u64, le_u32))(&buf).map_err(into_err)?;
+                tuple((le_u16, le_u32, le_u32, le_u64, le_u32))(&buf[..]).map_err(into_err)?;
             if flags & (1 << 9) == 0 {
                 return Err(ParseError::InvalidData(format!("unsupported flags: {:b}", flags)).into());
             }

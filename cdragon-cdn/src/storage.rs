@@ -157,7 +157,7 @@ impl CdnStorage {
     /// Compute hash of an extracted file, from its chunks
     fn shared_file_hash(file_entry: &FileEntry) -> String {
         //XXX could be improved (or file hash format could change)
-        let mut m = sha1::Sha1::new();
+        let mut m = sha1_smol::Sha1::new();
         for chunk_id in file_entry.iter_chunks() {
             m.update(format!("{:016X}", chunk_id).as_bytes());
         }

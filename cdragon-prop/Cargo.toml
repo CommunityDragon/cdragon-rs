@@ -2,13 +2,13 @@
 name = "cdragon-prop"
 version = "0.1.0"
 authors = ["Benoît Ryder <benoit@ryder.fr>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 cdragon-utils = { path = "../cdragon-utils" }
 cdragon-wad = { path = "../cdragon-wad" }
-nom = "5"
 derive-try-from-primitive = "0.1"
+nom = "7"
 walkdir = "2"
 
 [features]

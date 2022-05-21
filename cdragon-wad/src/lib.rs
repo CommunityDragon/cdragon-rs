@@ -64,7 +64,7 @@ impl Wad {
         let version = {
             let mut buf = [0u8; MAGIC_VERSION_LEN];
             reader.read_exact(&mut buf)?;
-            let (_, (_, major, minor)) = tuple((tag("RW"), le_u8, le_u8))(&buf).map_err(into_err)?;
+            let (_, (_, major, minor)) = tuple((tag("RW"), le_u8, le_u8))(&buf[..]).map_err(into_err)?;
             (major, minor)
         };
 
@@ -75,7 +75,7 @@ impl Wad {
                 let mut buf = [0u8; 2 + 2 + 4];
                 reader.read_exact(&mut buf)?;
                 let (_, (entry_offset, entry_size, entry_count)) =
-                    tuple((le_u16, le_u16, le_u32))(&buf).map_err(into_err)?;
+                    tuple((le_u16, le_u16, le_u32))(&buf[..]).map_err(into_err)?;
                 // Not supported because it's not needed, but could be
                 if entry_size != 32 {
                     return Err(ParseError::InvalidData(format!("unexpected entry size: {}", entry_size)).into());
@@ -87,7 +87,7 @@ impl Wad {
                 reader.seek(SeekFrom::Current(264))?;
                 let mut buf = [0u8; 4];
                 reader.read_exact(&mut buf)?;
-                let (_, entry_count) = le_u32(&buf).map_err(into_err)?;
+                let (_, entry_count) = le_u32(&buf[..]).map_err(into_err)?;
                 let entry_offset = reader.seek(SeekFrom::Current(0))?;
                 (entry_count, entry_offset)
             }

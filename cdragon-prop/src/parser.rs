@@ -136,11 +136,11 @@ impl<R: Read> BinEntryScanner<R> {
             // Skip linked files
             let mut buf = [0u8; 4];
             reader.read_exact(&mut buf)?;
-            let (_, n) = le_u32(&buf).map_err(into_err)?;
+            let (_, n) = le_u32(&buf[..]).map_err(into_err)?;
             for _ in 0..n {
                 let mut buf = [0u8; 2];
                 reader.read_exact(&mut buf)?;
-                let (_, n) = le_u16(&buf).map_err(into_err)?;
+                let (_, n) = le_u16(&buf[..]).map_err(into_err)?;
                 std::io::copy(&mut reader.by_ref().take(n as u64), &mut std::io::sink())?;
             }
         };
@@ -149,7 +149,7 @@ impl<R: Read> BinEntryScanner<R> {
         let entry_types: Vec<BinClassName> = {
             let mut buf = [0u8; 4];
             reader.read_exact(&mut buf)?;
-            let (_, n) = le_u32(&buf).map_err(into_err)?;
+            let (_, n) = le_u32(&buf[..]).map_err(into_err)?;
             let mut buf = Vec::<u8>::new();
             reader.by_ref().take(4 * n as u64).read_to_end(&mut buf)?;
             let (_, entry_types) = count(BinClassName::binparse, n as usize)(&buf).map_err(into_err)?;
@@ -195,7 +195,7 @@ trait BinEntryScan {
     fn next_scan(reader: &mut Self::Reader) -> Result<(u32, BinEntryPath)> {
         let mut buf = [0u8; 4 + 4];
         reader.read_exact(&mut buf)?;
-        let (_, (length, path)) = tuple((le_u32, BinEntryPath::binparse))(&buf).map_err(into_err)?;
+        let (_, (length, path)) = tuple((le_u32, BinEntryPath::binparse))(&buf[..]).map_err(into_err)?;
         Ok((length - 4, path))  // path has been read, deduct it from length
     }
 

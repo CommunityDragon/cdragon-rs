@@ -3,7 +3,7 @@
 use std::io::{Read, BufRead, BufReader, BufWriter};
 use std::path::Path;
 use std::collections::HashMap;
-use reqwest::{Client, Url, Response, header, IntoUrl};
+use reqwest::{Url, header, IntoUrl, blocking::{Client, Response}};
 use cdragon_utils::{GuardedFile, Result};
 use cdragon_rman::FileBundleRanges;
 // Re-exports

@@ -2,7 +2,7 @@ use std::{fs, io};
 use std::path::Path;
 use std::collections::{HashSet, HashMap};
 use walkdir::{WalkDir, DirEntry};
-use clap::{App, SubCommand, Arg};
+use clap::{Command, Arg};
 use byteorder::{LittleEndian, WriteBytesExt};
 use cdragon_prop::{
     NON_PROP_BASENAMES,
@@ -145,19 +145,19 @@ fn build_entrydb<P: AsRef<Path>, Q: AsRef<Path>>(root: P, output: Q, verbose: bo
 
 
 fn main() {
-    let appm = App::new("cdragon-binviewer")
+    let appm = Command::new("cdragon-binviewer")
         .about("Tools for CDragon bin viewer")
-        .arg(Arg::with_name("verbose")
-             .short("v")
+        .arg(Arg::new("verbose")
+             .short('v')
              .help("be more verbose"))
         .subcommand(
-            SubCommand::with_name("create-entrydb")
+            Command::new("create-entrydb")
             .about("create DB for bin entries")
-            .arg(Arg::with_name("db")
-                 .short("o")
+            .arg(Arg::new("db")
+                 .short('o')
                  .value_name("FILE")
                  .help("database file to create"))
-            .arg(Arg::with_name("dir")
+            .arg(Arg::new("dir")
                  .value_name("DIR")
                  .required(true)
                  .help("root path for BIN files"))
@@ -167,7 +167,7 @@ fn main() {
     let verbose = appm.is_present("verbose");
 
     match appm.subcommand() {
-        ("create-entrydb", Some(subm)) => {
+        Some(("create-entrydb", subm)) => {
             let dirpath = subm.value_of("dir").unwrap();
             let dbpath = subm.value_of("db").unwrap_or("entrydb.data");
             build_entrydb(&dirpath, &dbpath, verbose).unwrap();

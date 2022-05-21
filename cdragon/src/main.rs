@@ -2,7 +2,7 @@ use std::fs;
 use std::io;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use clap::{Arg, AppSettings};
+use clap::Arg;
 use walkdir::{WalkDir, DirEntry};
 
 use cdragon_prop::{
@@ -134,31 +134,31 @@ fn main() -> Result<()> {
         .options(|app| {
             app
                 .about("CDragon toolbox CLI")
-                .setting(AppSettings::ArgRequiredElseHelp)
+                .arg_required_else_help(true)
         })
     .add_nested(
         NestedCommand::new("bin")
         .options(|app| {
             app
                 .about("Work on BIN files")
-                .setting(AppSettings::ArgRequiredElseHelp)
+                .arg_required_else_help(true)
         })
         .add_nested(
             NestedCommand::new("dump")
             .options(|app| {
                 app
                     .about("Dump a BIN file as a text tree")
-                    .arg(Arg::with_name("input")
+                    .arg(Arg::new("input")
                          .value_name("bin")
                          .required(true)
-                         .multiple(true)
+                         .multiple_values(true)
                          .help("`.bin` files or directories to extract (recursively for directories)"))
-                    .arg(Arg::with_name("hashes")
-                         .short("H")
+                    .arg(Arg::new("hashes")
+                         .short('H')
                          .value_name("dir")
                          .help("Directory with hash lists"))
-                    .arg(Arg::with_name("json")
-                         .short("j")
+                    .arg(Arg::new("json")
+                         .short('j')
                          .help("Dump as JSON (output one object per `.bin` file)"))
             })
             .runner(|subm| {
@@ -197,17 +197,17 @@ fn main() -> Result<()> {
             .options(|app| {
                 app
                     .about("Gather unknown hashes from BIN files")
-                    .arg(Arg::with_name("input")
+                    .arg(Arg::new("input")
                          .value_name("bin")
                          .required(true)
                          .help("Directory with `.bin` files to scan"))
-                    .arg(Arg::with_name("hashes")
-                         .short("H")
+                    .arg(Arg::new("hashes")
+                         .short('H')
                          .value_name("dir")
                          .required(true)
                          .help("Directory with known hash lists"))
-                    .arg(Arg::with_name("output")
-                         .short("o")
+                    .arg(Arg::new("output")
+                         .short('o')
                          .value_name("dir")
                          .default_value(".")
                          .help("Output directory for unknown hashes files (default: `.`)"))
@@ -249,12 +249,12 @@ fn main() -> Result<()> {
             .options(|app| {
                 app
                     .about("Guess unknown hashes from BIN files")
-                    .arg(Arg::with_name("input")
+                    .arg(Arg::new("input")
                          .value_name("bin")
                          .required(true)
                          .help("Directory with `.bin` files to scan"))
-                    .arg(Arg::with_name("hashes")
-                         .short("H")
+                    .arg(Arg::new("hashes")
+                         .short('H')
                          .value_name("dir")
                          .required(true)
                          .help("Directory with known hash lists"))
@@ -289,18 +289,18 @@ fn main() -> Result<()> {
         .options(|app| {
             app
                 .about("Work on release manifests (RMAN files)")
-                .setting(AppSettings::ArgRequiredElseHelp)
+                .arg_required_else_help(true)
         })
         .add_nested(
             NestedCommand::new("bundles")
             .options(|app| {
                 app
                     .about("List bundles")
-                    .arg(Arg::with_name("manifest")
+                    .arg(Arg::new("manifest")
                          .required(true)
                          .help("Manifest file to parse"))
-                    .arg(Arg::with_name("chunks")
-                         .short("c")
+                    .arg(Arg::new("chunks")
+                         .short('c')
                          .help("Also list chunks within each bundle"))
             })
             .runner(|subm| {
@@ -323,7 +323,7 @@ fn main() -> Result<()> {
             .options(|app| {
                 app
                     .about("List files")
-                    .arg(Arg::with_name("manifest")
+                    .arg(Arg::new("manifest")
                          .required(true)
                          .help("Manifest file to parse"))
             })
@@ -342,17 +342,17 @@ fn main() -> Result<()> {
             .options(|app| {
                 app
                     .about("Download files")
-                    .arg(Arg::with_name("output")
-                         .short("o")
+                    .arg(Arg::new("output")
+                         .short('o')
                          .value_name("dir")
                          .help("Output directory for downloaded files"))
-                    .arg(Arg::with_name("manifest")
+                    .arg(Arg::new("manifest")
                          .required(true)
                          .index(1)
                          .help("Manifest file to parse"))
-                    .arg(Arg::with_name("patterns")
+                    .arg(Arg::new("patterns")
                          .required(true)
-                         .multiple(true)
+                         .multiple_values(true)
                          .help("Paths of files to download, `*` wildcards are supported"))
             })
             .runner(|subm| {
@@ -403,18 +403,18 @@ fn main() -> Result<()> {
         .options(|app| {
             app
                 .about("Work on WAD archives")
-                .setting(AppSettings::ArgRequiredElseHelp)
+                .arg_required_else_help(true)
         })
         .add_nested(
             NestedCommand::new("list")
             .options(|app| {
                 app
                     .about("List WAD entries")
-                    .arg(Arg::with_name("wad")
+                    .arg(Arg::new("wad")
                          .required(true)
                          .help("WAD file to parse"))
-                    .arg(Arg::with_name("hashes")
-                         .short("H")
+                    .arg(Arg::new("hashes")
+                         .short('H')
                          .value_name("dir")
                          .help("Directory with hash list"))
             })
@@ -432,23 +432,23 @@ fn main() -> Result<()> {
             .options(|app| {
                 app
                     .about("Extract WAD entries")
-                    .arg(Arg::with_name("wad")
+                    .arg(Arg::new("wad")
                          .required(true)
                          .help("WAD file to parse"))
-                    .arg(Arg::with_name("output")
-                         .short("o")
+                    .arg(Arg::new("output")
+                         .short('o')
                          .value_name("dir")
                          .help("Output directory for extracted files"))
-                    .arg(Arg::with_name("unknown")
-                         .short("u")
+                    .arg(Arg::new("unknown")
+                         .short('u')
                          .value_name("subdir")
                          .help("Output unknown files to given subdirectory (empty to not output them)"))
-                    .arg(Arg::with_name("hashes")
-                         .short("H")
+                    .arg(Arg::new("hashes")
+                         .short('H')
                          .value_name("dir")
                          .help("Directory with hash list"))
-                    .arg(Arg::with_name("patterns")
-                         .multiple(true)
+                    .arg(Arg::new("patterns")
+                         .multiple_values(true)
                          .help("Hashes or paths of files to download, `*` wildcards are supported for paths"))
             })
             .runner(|subm| {

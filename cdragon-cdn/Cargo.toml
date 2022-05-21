@@ -2,15 +2,15 @@
 name = "cdragon-cdn"
 version = "0.1.0"
 authors = ["Benoît Ryder <benoit@ryder.fr>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 cdragon-utils = { path = "../cdragon-utils" }
 cdragon-rman = { path = "../cdragon-rman" }
 memmap = "0.7"
-pathdiff = "0.1"
-reqwest = "0.9"
-serde = "1.0"
-serde_json = "1.0"
-sha1 = { version = "0.6", features = ["std"] }
-zstd = "0.5"
+pathdiff = "0.2"
+reqwest = { version = "0.11", features = ["blocking"] }
+serde = "1"
+serde_json = "1"
+sha1_smol = { version = "1", features = ["std"] }
+zstd = "0.11"

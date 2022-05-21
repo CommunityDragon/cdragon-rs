@@ -2,13 +2,12 @@
 name = "cdragon-utils"
 version = "0.1.0"
 authors = ["Benoît Ryder <benoit@ryder.fr>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 num-traits = "0.2"
-nom = "5"
-derive-try-from-primitive = "0.1"
+nom = "7"
 walkdir = "2"
-serde = "1.0"
-serde_json = "1.0"
+serde = "1"
+serde_json = "1"
 

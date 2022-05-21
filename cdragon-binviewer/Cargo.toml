@@ -2,18 +2,19 @@
 name = "cdragon-binviewer"
 version = "0.1.0"
 authors = ["Benoît Ryder <benoit@ryder.fr>"]
-edition = "2018"
+edition = "2021"
 workspace = ".."
 
 [dependencies]
 cdragon = { path = "../cdragon" }
 cdragon-prop = { path = "../cdragon-prop" }
 log = "0.4"
-web_logger = "0.1"
-yew = "0.8"
+web_logger = "0.2"
+yew = "0.19"
 stdweb = "0.4"
 regex = "1"
 byteorder = "1"
+getrandom = { version = "0.2", features = ["js"] }
 
 [features]
 default = ["wasm"]
