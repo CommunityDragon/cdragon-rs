@@ -1,8 +1,6 @@
-use std::path::Path;
-
 
 #[cfg(windows)]
-pub fn symlink<P: AsRef<Path>, Q: AsRef<Path>>(src: P, dst: Q) -> std::io::Result<()> {
+pub fn symlink<P: AsRef<std::path::Path>, Q: AsRef<std::path::Path>>(src: P, dst: Q) -> std::io::Result<()> {
     if src.as_ref().is_dir() {
         std::os::windows::fs::symlink_dir(src, dst)
     } else {
