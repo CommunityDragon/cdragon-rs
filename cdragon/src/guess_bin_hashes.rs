@@ -206,7 +206,7 @@ impl<'a> BinHashGuesser<'a> {
             for hability in abilities {
                 // Some related characters use cross-character abilities (ex. Elemental Lux)
                 if let Some(ability_name) = spell_names.get(&hability) {
-                    self.finder.check_from_iter(BinHashKind::EntryPath, ability_spells[&hability].iter().map(|h| format!("{}/Spells/{}/{}", prefix, ability_name, spell_names[&h])));
+                    self.finder.check_from_iter(BinHashKind::EntryPath, ability_spells[&hability].iter().map(|h| format!("{}/Spells/{}/{}", prefix, ability_name, spell_names[h])));
                 }
             }
         }
