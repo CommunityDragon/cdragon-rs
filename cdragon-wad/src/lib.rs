@@ -11,7 +11,7 @@ use nom::{
     combinator::map,
     sequence::tuple,
 };
-use derive_try_from_primitive::TryFromPrimitive;
+use num_enum::TryFromPrimitive;
 use twox_hash::XxHash64;
 use cdragon_utils::Result;
 use cdragon_utils::hashes::HashMapper;
@@ -88,7 +88,7 @@ impl Wad {
                 let mut buf = [0u8; 4];
                 reader.read_exact(&mut buf)?;
                 let (_, entry_count) = le_u32(&buf[..]).map_err(into_err)?;
-                let entry_offset = reader.seek(SeekFrom::Current(0))?;
+                let entry_offset = reader.stream_position()?;
                 (entry_count, entry_offset)
             }
             // Note: version 1 could be supported
@@ -225,8 +225,8 @@ impl WadHashKind {
     /// Return filename used to store the mapping of each hash kind
     pub fn mapper_path(&self) -> &'static str {
         match self {
-            Self::Lcu => &"hashes.lcu.txt",
-            Self::Game => &"hashes.game.txt",
+            Self::Lcu => "hashes.lcu.txt",
+            Self::Game => "hashes.game.txt",
         }
     }
 }
@@ -235,7 +235,7 @@ impl WadHashMappers {
     /// Create mapper, load all sub-mappers from a directory path
     pub fn from_dirpath(path: &Path) -> Result<Self> {
         let mut this = Self::default();
-        this.load_dirpath(&path)?;
+        this.load_dirpath(path)?;
         Ok(this)
     }
 

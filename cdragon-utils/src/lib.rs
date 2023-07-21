@@ -1,4 +1,3 @@
-#[macro_use]
 pub mod hashes;
 pub mod locale;
 pub mod parsing;

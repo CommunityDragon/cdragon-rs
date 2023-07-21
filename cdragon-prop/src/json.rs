@@ -3,6 +3,7 @@ use std::io::Write;
 use super::{BinEntry, BinHashMappers};
 use super::data::*;
 use super::serializer::{BinSerializer, BinEntriesSerializer, BinSerializable};
+use super::{binvalue_map_type, binvalue_map_keytype};
 
 // serde serialization cannot be used because of hashes requiring mappers to be serialized.
 // serde_json does not expose it's JSON string escaping
@@ -36,28 +37,28 @@ impl<'a, W: Write> JsonSerializer<'a, W> {
     }
 
     fn write_entry_path(&mut self, h: BinEntryPath) -> io::Result<()> {
-        match h.get_str(&self.hmappers) {
+        match h.get_str(self.hmappers) {
             Some(s) => write!(self.writer, "\"{}\"", s),
             _ => write!(self.writer, "\"{{{:x}}}\"", h),
         }
     }
 
     fn write_field_name(&mut self, h: BinFieldName) -> io::Result<()> {
-        match h.get_str(&self.hmappers) {
+        match h.get_str(self.hmappers) {
             Some(s) => write!(self.writer, "\"{}\"", s),
             _ => write!(self.writer, "\"{{{:x}}}\"", h),
         }
     }
 
     fn write_hash_value(&mut self, h: BinHashValue) -> io::Result<()> {
-        match h.get_str(&self.hmappers) {
+        match h.get_str(self.hmappers) {
             Some(s) => write!(self.writer, "\"{}\"", s),
             _ => write!(self.writer, "\"{{{:x}}}\"", h),
         }
     }
 
     fn write_path_value(&mut self, h: BinPathValue) -> io::Result<()> {
-        match h.get_str(&self.hmappers) {
+        match h.get_str(self.hmappers) {
             Some(s) => write!(self.writer, "\"{}\"", s),
             _ => write!(self.writer, "\"{{{:x}}}\"", h),
         }

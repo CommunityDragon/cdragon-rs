@@ -1,6 +1,5 @@
 //! Support of PROP files
 
-#[macro_use]
 mod macros;
 mod parser;
 mod serializer;
@@ -80,7 +79,7 @@ impl BinHashMappers {
     /// Create mapper, load all sub-mappers from a directory path
     pub fn from_dirpath(path: &Path) -> Result<Self> {
         let mut this = Self::default();
-        this.load_dirpath(&path)?;
+        this.load_dirpath(path)?;
         Ok(this)
     }
 
@@ -180,20 +179,16 @@ pub const fn compute_binhash_const(s: &str) -> u32 {
     let bytes = s.as_bytes();
     let mut i = 0usize;
     while i < bytes.len() {
-        let mut b = bytes[i];
-        // convert to lowercase, const
-        if b >= 'A' as u8 && b <= 'Z' as u8 {
-            b = b | ' ' as u8;
-        }
+        let b = bytes[i].to_ascii_lowercase();
         h = (h ^ b as u32).wrapping_mul(0x01000193);
         i += 1;
     }
-    return h;
+    h
 }
 
 
 /// Files known to not be PROP files, despite their extension
-pub const NON_PROP_BASENAMES: &'static [&str]  = &[
+pub const NON_PROP_BASENAMES: &[&str]  = &[
     "atlas_info.bin",
     "tftoutofgamecharacterdata.bin",
     "tftmapcharacterlists.bin",

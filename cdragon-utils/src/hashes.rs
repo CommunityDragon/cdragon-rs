@@ -63,7 +63,7 @@ impl<T> HashMapper<T> where T: Num + Eq + Hash {
     /// Load hash map from a reader
     pub fn load_reader<R: BufRead>(&mut self, reader: R) -> Result<(), HashError> {
         for line in reader.lines() {
-            let l = line.map_err(|e| HashError::Io(e))?;
+            let l = line.map_err(HashError::Io)?;
             if l.len() < Self::HASH_LEN + 2 {
                 return Err(HashError::InvalidHashLine(l));
             }

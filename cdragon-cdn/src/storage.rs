@@ -77,7 +77,7 @@ impl CdnStorage {
         let rman = Rman::open(&path)?;
         self.download_manifest_bundles(&rman)?;
         //TODO extract to a temporary directory and rename it on success
-        self.extract_manifest_files(&rman, &output)?;
+        self.extract_manifest_files(&rman, output)?;
         Ok(())
     }
 
@@ -131,7 +131,7 @@ impl CdnStorage {
     fn extract_chunks_to_file(&self, file_size: u64, bundle_ranges: &FileBundleRanges, output: &Path) -> Result<()> {
         // Open output file, map it to memory
         let mut mmap = GuardedMmap::create(output, file_size)?;
-        let buf: &mut [u8] = &mut mmap.mmap();
+        let buf: &mut [u8] = mmap.mmap();
 
         // Download chunks, bundle per bundle
         for (bundle_id, ranges) in bundle_ranges {

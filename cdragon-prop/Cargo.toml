@@ -7,7 +7,7 @@ edition = "2021"
 [dependencies]
 cdragon-utils = { path = "../cdragon-utils" }
 cdragon-wad = { path = "../cdragon-wad" }
-derive-try-from-primitive = "0.1"
+num_enum = "0.6"
 nom = "7"
 walkdir = "2"
 

@@ -256,9 +256,13 @@ impl<'a> BinHashGuesser<'a> {
     pub fn guess_from_items(&mut self) -> Result<()> {
         for entry in PropFile::from_path(self.root.join("global/items/items.bin"))?.entries {
             if entry.ctype == binh!("SpellObject") {
-                entry.getv::<BinString>(binh!("mScriptName")).map(|v| self.finder.check(BinHashKind::EntryPath, format!("Items/Spells/{}", v.0)));
+                if let Some(v) = entry.getv::<BinString>(binh!("mScriptName")) {
+                    self.finder.check(BinHashKind::EntryPath, format!("Items/Spells/{}", v.0));
+                }
             } else if entry.ctype == binh!("ItemData") {
-                entry.getv::<BinS32>(binh!("itemID")).map(|v| self.finder.check(BinHashKind::EntryPath, format!("Items/{}", v.0)));
+                if let Some(v) = entry.getv::<BinS32>(binh!("itemID")) {
+                    self.finder.check(BinHashKind::EntryPath, format!("Items/{}", v.0));
+                }
             }
         }
 
@@ -270,7 +274,9 @@ impl<'a> BinHashGuesser<'a> {
     pub fn guess_from_companions(&mut self) -> Result<()> {
         for entry in PropFile::from_path(self.root.join("global/loadouts/companions.bin"))?.entries {
             if entry.ctype == binh!("CompanionData") {
-                entry.getv::<BinString>(binh!("speciesLink")).map(|v| self.finder.check(BinHashKind::EntryPath, &v.0));
+                if let Some(v) = entry.getv::<BinString>(binh!("speciesLink")) {
+                    self.finder.check(BinHashKind::EntryPath, &v.0);
+                }
             }
         }
         Ok(())
@@ -279,9 +285,13 @@ impl<'a> BinHashGuesser<'a> {
     pub fn guess_from_summoner_emotes(&mut self) -> Result<()> {
         for entry in PropFile::from_path(self.root.join("global/loadouts/summoneremotes.bin"))?.entries {
             if entry.ctype == binh!("CompanionData") {
-                entry.getv::<BinString>(binh!("speciesLink")).map(|v| self.finder.check(BinHashKind::EntryPath, &v.0));
+                if let Some(v) = entry.getv::<BinString>(binh!("speciesLink")) {
+                    self.finder.check(BinHashKind::EntryPath, &v.0);
+                }
             } else if entry.ctype == binh!("SummonerEmote") {
-                entry.getv::<BinU32>(binh!("summonerEmoteId")).map(|v| self.finder.check(BinHashKind::EntryPath, format!("Loadouts/SummonerEmotes/{}", v.0)));
+                if let Some(v) = entry.getv::<BinU32>(binh!("summonerEmoteId")) {
+                    self.finder.check(BinHashKind::EntryPath, format!("Loadouts/SummonerEmotes/{}", v.0));
+                }
             }
         }
         Ok(())
@@ -305,11 +315,13 @@ impl<'a> BinHashGuesser<'a> {
     pub fn guess_from_tft_map_skins(&mut self) -> Result<()> {
         for entry in PropFile::from_path(self.root.join("global/loadouts/tftmapskins.bin"))?.entries {
             if entry.ctype == binh!("TftMapSkin") {
-                entry.getv::<BinString>(binh!("mapContainer")).map(|v| {
+                if let Some(v) = entry.getv::<BinString>(binh!("mapContainer")) {
                     let name = v.0.rsplit('/').next().unwrap();
                     self.finder.check(BinHashKind::EntryPath, format!("Loadouts/TFTMapSkins/{}", name))
-                });
-                entry.getv::<BinString>(0xfb59da5c.into()).map(|v| self.finder.check(BinHashKind::EntryPath, &v.0));
+                }
+                if let Some(v) = entry.getv::<BinString>(0xfb59da5c.into()) {
+                    self.finder.check(BinHashKind::EntryPath, &v.0);
+                }
             }
         }
         Ok(())
@@ -361,7 +373,9 @@ impl<'a> BinHashGuesser<'a> {
                 let entry = entry?;
                 //XXX Cannot use `match` because of `binh!`
                 let hfield = htype_to_field[&entry.ctype];
-                entry.getv::<BinString>(hfield).map(|v| self.finder.check(BinHashKind::EntryPath, &v.0));
+                if let Some(v) = entry.getv::<BinString>(hfield) {
+                    self.finder.check(BinHashKind::EntryPath, &v.0);
+                }
             }
         }
         Ok(())

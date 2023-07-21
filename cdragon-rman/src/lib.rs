@@ -280,7 +280,7 @@ impl<'a> BodyFieldsCursor<'a> {
         match self.field_offset(field) {
             0 => None,
             o => {
-                let offset = self.entry_offset + o as i32;
+                let offset = self.entry_offset + o;
                 Some(&self.body[offset as usize .. (offset + n) as usize])
             }
         }
@@ -629,7 +629,7 @@ fn parse_file_entry(cursor: BodyCursor) -> FileEntry {
     let filesize = cursor.get_u32(4).expect("missing file size field");
     let name = cursor.get_str(5).expect("missing file name field");
     let locales = cursor.get_u64(6).map(|mask| LocaleSet { mask });
-    let link = cursor.get_str(11).filter(|v| v.len() != 0);
+    let link = cursor.get_str(11).filter(|v| !v.is_empty());
     let chunks_cursor = cursor.get_subcursor(1);
 
     FileEntry {

@@ -9,6 +9,7 @@ use nom::{
 };
 use super::{PropFile, BinEntry, BinEntryHeader};
 use super::data::*;
+use super::{binvalue_map_type, binvalue_map_keytype};
 use cdragon_utils::Result;
 use cdragon_utils::parsing::{ParseError, into_err, IResult};
 use cdragon_utils::hashes::HashDef;
@@ -339,11 +340,11 @@ impl BinParsable for BinField {
     }
 }
 
-impl_binparsable!(BinHashValue, map(le_u32, |v| Self::from(v)));
-impl_binparsable!(BinEntryPath, map(le_u32, |v| Self::from(v)));
-impl_binparsable!(BinClassName, map(le_u32, |v| Self::from(v)));
-impl_binparsable!(BinFieldName, map(le_u32, |v| Self::from(v)));
-impl_binparsable!(BinPathValue, map(le_u64, |v| Self::from(v)));
+impl_binparsable!(BinHashValue, map(le_u32, Self::from));
+impl_binparsable!(BinEntryPath, map(le_u32, Self::from));
+impl_binparsable!(BinClassName, map(le_u32, Self::from));
+impl_binparsable!(BinFieldName, map(le_u32, Self::from));
+impl_binparsable!(BinPathValue, map(le_u64, Self::from));
 
 impl_binparsable!(BinNone, map(take(6usize), |_| Self()));
 impl_binparsable!(BinBool, map(le_u8, |v| Self(v != 0u8)));

@@ -3,6 +3,7 @@ use std::io::Write;
 use super::data::*;
 use super::{BinEntry, BinHashMappers};
 use super::serializer::{BinSerializer, BinEntriesSerializer, BinSerializable};
+use super::{binvalue_map_type, binvalue_map_keytype};
 
 
 macro_rules! indented {
@@ -46,35 +47,35 @@ impl<'a, W: Write> TextTreeSerializer<'a, W> {
     }
 
     fn format_entry_path(&self, h: BinEntryPath) -> String {
-        match h.get_str(&self.hmappers) {
+        match h.get_str(self.hmappers) {
             Some(s) => format!("'{}'", s),
             _ => format!("{{{:x}}}", h),
         }
     }
 
     fn format_type_name(&self, h: BinClassName) -> String {
-        match h.get_str(&self.hmappers) {
+        match h.get_str(self.hmappers) {
             Some(s) => s.to_string(),
             _ => format!("{{{:x}}}", h),
         }
     }
 
     fn format_field_name(&self, h: BinFieldName) -> String {
-        match h.get_str(&self.hmappers) {
+        match h.get_str(self.hmappers) {
             Some(s) => s.to_string(),
             _ => format!("{{{:x}}}", h),
         }
     }
 
     fn format_hash_value(&self, h: BinHashValue) -> String {
-        match h.get_str(&self.hmappers) {
+        match h.get_str(self.hmappers) {
             Some(s) => format!("'{}'", s),
             _ => format!("{{{:x}}}", h),
         }
     }
 
     fn format_path_value(&self, h: BinPathValue) -> String {
-        match h.get_str(&self.hmappers) {
+        match h.get_str(self.hmappers) {
             Some(s) => format!("'{}'", s),
             _ => format!("{{{:x}}}", h),
         }

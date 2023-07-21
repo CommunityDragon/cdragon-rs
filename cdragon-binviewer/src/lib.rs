@@ -1,6 +1,5 @@
 
 #![recursion_limit = "256"]
-#[macro_use]
 pub mod settings;
 mod entrydb;
 mod binloadservice;

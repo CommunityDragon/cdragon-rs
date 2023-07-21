@@ -58,10 +58,8 @@ fn is_binfile_direntry(entry: &DirEntry) -> bool {
         } else {
             false
         }
-    } else if ftype.is_dir() {
-        true
     } else {
-        false
+        ftype.is_dir()
     }
 }
 

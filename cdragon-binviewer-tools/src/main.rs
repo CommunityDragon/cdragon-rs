@@ -25,10 +25,8 @@ fn is_binfile_direntry(entry: &DirEntry) -> bool {
         } else {
             false
         }
-    } else if ftype.is_dir() {
-        true
     } else {
-        false
+        ftype.is_dir()
     }
 }
 
@@ -36,7 +34,7 @@ fn is_binfile_direntry(entry: &DirEntry) -> bool {
 fn normalize_binfile_path(path: &Path) -> String {
     let filepath = path.to_str().unwrap();
     if cfg!(target_os = "windows") {
-        filepath.replace(r"\", "/")
+        filepath.replace('\\', "/")
     } else {
         filepath.to_string()
     }
@@ -70,7 +68,7 @@ impl Builder {
             if scanner.is_patch {
                 continue;  // don't include patch entries
             }
-            let filepath = normalize_binfile_path(&path.strip_prefix(&root)?);
+            let filepath = normalize_binfile_path(path.strip_prefix(&root)?);
             self.files.insert(filepath.clone());
             for result in scanner.headers() {
                 let (hpath, htype) = result?;
@@ -100,7 +98,7 @@ impl Builder {
         let mut file_indexes = HashMap::<&str, u32>::new();
         write_u32!(w, self.files.len())?;
         for (i, file) in self.files.iter().enumerate() {
-            write!(w, "{}\n", file)?;
+            writeln!(w, "{}", file)?;
             file_indexes.insert(file, i as u32);
         }
 
@@ -129,7 +127,7 @@ fn build_entrydb<P: AsRef<Path>, Q: AsRef<Path>>(root: P, output: Q, verbose: bo
     builder.load_dir(root)?;
 
     let output = output.as_ref();
-    let ofile = fs::File::create(&output)?;
+    let ofile = fs::File::create(output)?;
     let writer = io::BufWriter::new(ofile);
     builder.write(writer)?;
 
@@ -170,7 +168,7 @@ fn main() {
         Some(("create-entrydb", subm)) => {
             let dirpath = subm.value_of("dir").unwrap();
             let dbpath = subm.value_of("db").unwrap_or("entrydb.data");
-            build_entrydb(&dirpath, &dbpath, verbose).unwrap();
+            build_entrydb(dirpath, dbpath, verbose).unwrap();
         },
         _ => {
             eprintln!("Unexpected subcommand");

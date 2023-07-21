@@ -1,5 +1,5 @@
 use std::any::Any;
-use derive_try_from_primitive::TryFromPrimitive;
+use num_enum::TryFromPrimitive;
 use super::{BinHashMappers, compute_binhash};
 use cdragon_utils::declare_hash_type;
 
@@ -30,16 +30,16 @@ impl BinHashKind {
     /// Return filename used to store the mapping for a `BinHashKind`
     pub fn mapper_path(&self) -> &'static str {
         match self {
-            Self::EntryPath => &"hashes.binentries.txt",
-            Self::ClassName => &"hashes.bintypes.txt",
-            Self::FieldName => &"hashes.binfields.txt",
-            Self::HashValue => &"hashes.binhashes.txt",
+            Self::EntryPath => "hashes.binentries.txt",
+            Self::ClassName => "hashes.bintypes.txt",
+            Self::FieldName => "hashes.binfields.txt",
+            Self::HashValue => "hashes.binhashes.txt",
         }
     }
 
     /// Iterate on variants
     pub fn variants() -> impl Iterator<Item=Self> {
-        static VARIANTS: &'static [BinHashKind] = &[
+        static VARIANTS: &[BinHashKind] = &[
             BinHashKind::EntryPath,
             BinHashKind::ClassName,
             BinHashKind::FieldName,

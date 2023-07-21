@@ -19,9 +19,9 @@ pub enum ParseError {
 impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let s = match self {
-            ParseError::Error => &"unexpected data",
-            ParseError::NotEnoughData => &"not enough data",
-            ParseError::TooMuchData => &"too much data",
+            ParseError::Error => "unexpected data",
+            ParseError::NotEnoughData => "not enough data",
+            ParseError::TooMuchData => "too much data",
             ParseError::InvalidData(s) => s.as_str(),
         };
         f.write_str(s)

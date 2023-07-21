@@ -2,6 +2,8 @@ use super::{
     BinHashSets,
     BinEntry,
     data::*,
+    binvalue_map_type,
+    binvalue_map_keytype,
 };
 
 macro_rules! binvalue_map_with_hashes {
@@ -112,13 +114,12 @@ impl GatherHashes for BinList {
 impl GatherHashes for BinMap {
     fn gather_hashes(&self, hashes: &mut BinHashSets) {
         // process keys, then value, for better code factorization
-        match self.ktype {
-            BinType::Hash => binvalue_map_type!(self.vtype, V, {
+        if self.ktype == BinType::Hash {
+            binvalue_map_type!(self.vtype, V, {
                 for (k, _) in self.downcast::<BinHash, V>().unwrap() {
                     k.gather_hashes(hashes);
                 }
-            }),
-            _ => {}
+            });
         }
         binvalue_map_keytype!(self.ktype, K, {
             binvalue_map_with_hashes!(self.vtype, V, {

@@ -28,11 +28,6 @@ impl Locale {
         }
     }
 
-    /// Parse a local code frome a string
-    pub fn from_str(s: &str) -> Result<Self, Error> {
-        Self::from_bytes(s.as_bytes())
-    }
-
     /// Check if bytes make a valid locale code
     fn is_valid_code(bytes: &[u8]) -> bool {
         bytes.len() == 5 &&
@@ -49,6 +44,13 @@ impl Locale {
             // safe because `code` is enforced to be ASCII
             std::str::from_utf8_unchecked(&self.code)
         }
+    }
+}
+
+impl std::str::FromStr for Locale {
+    type Err = Error;
+    fn from_str(s: &str) -> Result<Self, Error> {
+        Self::from_bytes(s.as_bytes())
     }
 }
 

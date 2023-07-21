@@ -83,15 +83,15 @@ impl CdnDownloader {
         for (bundle_id, ranges) in bundle_ranges {
             let cdn_path = Self::bundle_path(*bundle_id);
             // File ranges to slices
-            let buf: &mut [u8] = &mut mmap.mmap();
+            let buf: &mut [u8] = mmap.mmap();
             let mut download_ranges = Vec::<((u32, u32), &mut [u8])>::with_capacity(ranges.len());
             ranges
                 .iter()
                 .fold((buf, 0), |(buf, offset), range| {
-                    let (begin, end) = range.target.clone();
+                    let (begin, end) = range.target;
                     let (_, buf) = buf.split_at_mut((begin - offset) as usize);
                     let (out, buf) = buf.split_at_mut((end - begin) as usize);
-                    download_ranges.push((range.bundle.clone(), out));
+                    download_ranges.push((range.bundle, out));
                     (buf, end)
                 });
             self.download_ranges(&cdn_path, download_ranges)?;
@@ -119,7 +119,7 @@ impl CdnDownloader {
     /// Download multiple ranges of a bundle to the given buffers
     fn download_ranges(&self, path: &str, ranges: Vec<((u32, u32), &mut [u8])>) -> Result<()> {
         let cdn_ranges: Vec<(u32, u32)> = ranges.iter().map(|r| r.0).collect();
-        let response = self.get_ranges(&path, &cdn_ranges)?;
+        let response = self.get_ranges(path, &cdn_ranges)?;
 
         // Check for multipart response body
         let is_multipart = response.headers()
@@ -221,7 +221,7 @@ pub fn get_latest_lol_client_release(client: &mut Client, patchline: &str, regio
 pub fn get_latest_lol_game_release(client: &mut Client, platform: &str) -> Result<ReleaseInfo> {
     let url = format!("https://sieve.services.riotcdn.net/api/v1/products/lol/version-sets/{}?q[platform]=windows&q[published]=true", platform);
     let response = client
-        .get(&url)
+        .get(url)
         .send()?
         .error_for_status()?;
     let data: serde_json::Value = serde_json::from_reader(response)?;

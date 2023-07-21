@@ -1,5 +1,3 @@
-
-#![macro_use]
 use std::rc::Rc;
 use std::cell::{Cell, RefCell};
 use cdragon_prop::BinHashMappers;

@@ -55,8 +55,7 @@ impl<'a> NestedCommand<'a> {
             Ok(())  // nothing to do
         } else if let Some((subname, subm)) = appm.subcommand() {
             let sub = self.nested.into_iter()
-                .filter(|cmd| cmd.name == subname)
-                .next()
+                .find(|cmd| cmd.name == subname)
                 .expect("undeclared subcommand");
             sub.run_with_matches(subm)
         } else {
