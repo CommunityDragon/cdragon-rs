@@ -1,6 +1,6 @@
 
 /// Base URL for static resources
-pub const STATIC_BASE_URL: &'static str = &"/binviewer";
+pub const STATIC_BASE_URL: &'static str = &".";
 
 /// Base URL for game assets
 pub const ASSETS_BASE_URL: &'static str = &"https://raw.communitydragon.org/pbe/game";

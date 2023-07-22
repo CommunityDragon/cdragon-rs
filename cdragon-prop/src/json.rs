@@ -1,9 +1,13 @@
 use std::io;
 use std::io::Write;
-use super::{BinEntry, BinHashMappers};
-use super::data::*;
-use super::serializer::{BinSerializer, BinEntriesSerializer, BinSerializable};
-use super::{binvalue_map_type, binvalue_map_keytype};
+use super::{
+    BinEntry,
+    BinHashMappers,
+    data::*,
+    serializer::{BinSerializer, BinEntriesSerializer, BinSerializable},
+    binvalue_map_keytype,
+    binvalue_map_type,
+};
 
 // serde serialization cannot be used because of hashes requiring mappers to be serialized.
 // serde_json does not expose it's JSON string escaping

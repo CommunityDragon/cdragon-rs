@@ -1,9 +1,9 @@
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
 use walkdir::{WalkDir, DirEntry};
-use cdragon_utils::Result;
 use cdragon_prop::{
     NON_PROP_BASENAMES,
+    PropError,
     PropFile,
     BinHashKind,
     BinHashSets,
@@ -87,7 +87,7 @@ impl<'a> BinHashGuesser<'a> {
     }
 
     /// Guess everything possible
-    pub fn guess_all(&mut self) -> Result<()> {
+    pub fn guess_all(&mut self) -> Result<(), PropError> {
         self.guess_common_entry_types_paths()?;
         self.guess_from_characters()?;
         self.guess_from_items()?;
@@ -102,7 +102,7 @@ impl<'a> BinHashGuesser<'a> {
     }
 
     /// Guess hashes from all characters
-    pub fn guess_from_characters(&mut self) -> Result<()> {
+    pub fn guess_from_characters(&mut self) -> Result<(), PropError> {
         for name in self.collect_character_names() {
             self.guess_from_character(&name)?;
         }
@@ -110,7 +110,7 @@ impl<'a> BinHashGuesser<'a> {
     }
 
     /// Guess hashes from character name (case insensitive)
-    pub fn guess_from_character(&mut self, name: &str) -> Result<()> {
+    pub fn guess_from_character(&mut self, name: &str) -> Result<(), PropError> {
         let name = name.to_ascii_lowercase();
         let path = self.root.join("data/characters").join(&name);
 
@@ -253,7 +253,7 @@ impl<'a> BinHashGuesser<'a> {
     }
 
     /// Guess hashes from items
-    pub fn guess_from_items(&mut self) -> Result<()> {
+    pub fn guess_from_items(&mut self) -> Result<(), PropError> {
         for entry in PropFile::from_path(self.root.join("global/items/items.bin"))?.entries {
             if entry.ctype == binh!("SpellObject") {
                 if let Some(v) = entry.getv::<BinString>(binh!("mScriptName")) {
@@ -271,7 +271,7 @@ impl<'a> BinHashGuesser<'a> {
         Ok(())
     }
 
-    pub fn guess_from_companions(&mut self) -> Result<()> {
+    pub fn guess_from_companions(&mut self) -> Result<(), PropError> {
         for entry in PropFile::from_path(self.root.join("global/loadouts/companions.bin"))?.entries {
             if entry.ctype == binh!("CompanionData") {
                 if let Some(v) = entry.getv::<BinString>(binh!("speciesLink")) {
@@ -282,7 +282,7 @@ impl<'a> BinHashGuesser<'a> {
         Ok(())
     }
 
-    pub fn guess_from_summoner_emotes(&mut self) -> Result<()> {
+    pub fn guess_from_summoner_emotes(&mut self) -> Result<(), PropError> {
         for entry in PropFile::from_path(self.root.join("global/loadouts/summoneremotes.bin"))?.entries {
             if entry.ctype == binh!("CompanionData") {
                 if let Some(v) = entry.getv::<BinString>(binh!("speciesLink")) {
@@ -297,7 +297,7 @@ impl<'a> BinHashGuesser<'a> {
         Ok(())
     }
 
-    pub fn guess_from_summoner_trophies(&mut self) -> Result<()> {
+    pub fn guess_from_summoner_trophies(&mut self) -> Result<(), PropError> {
         // Formats given in `{89e3706b}.mGDSObjectPathTemplates`
         for entry in PropFile::from_path(self.root.join("global/loadouts/summonertrophies.bin"))?.entries {
             if entry.ctype == binh!("TrophyData") {
@@ -312,7 +312,7 @@ impl<'a> BinHashGuesser<'a> {
         Ok(())
     }
 
-    pub fn guess_from_tft_map_skins(&mut self) -> Result<()> {
+    pub fn guess_from_tft_map_skins(&mut self) -> Result<(), PropError> {
         for entry in PropFile::from_path(self.root.join("global/loadouts/tftmapskins.bin"))?.entries {
             if entry.ctype == binh!("TftMapSkin") {
                 if let Some(v) = entry.getv::<BinString>(binh!("mapContainer")) {
@@ -327,7 +327,7 @@ impl<'a> BinHashGuesser<'a> {
         Ok(())
     }
 
-    pub fn guess_from_shaders_shareddata(&mut self) -> Result<()> {
+    pub fn guess_from_shaders_shareddata(&mut self) -> Result<(), PropError> {
         for entry in PropFile::from_path(self.root.join("assets/shaders/shareddata.bin"))?.entries {
             if entry.ctype == binh!("X3DSharedConstantBufferDef") {
                 let name = &binget!(entry => name(BinString)).expect("missing name").0;
@@ -337,7 +337,7 @@ impl<'a> BinHashGuesser<'a> {
         Ok(())
     }
 
-    pub fn guess_from_fonts(&mut self) -> Result<()> {
+    pub fn guess_from_fonts(&mut self) -> Result<(), PropError> {
         for entry in PropFile::from_path(self.root.join("ux/fonts.bin"))?.entries {
             if entry.ctype == binh!("GameFontDescription") {
                 let name = &binget!(entry => name(BinString)).expect("missing name").0;
@@ -347,7 +347,7 @@ impl<'a> BinHashGuesser<'a> {
         Ok(())
     }
 
-    pub fn guess_from_tooltips(&mut self) -> Result<()> {
+    pub fn guess_from_tooltips(&mut self) -> Result<(), PropError> {
         for entry in PropFile::from_path(self.root.join("ux/tooltips.bin"))?.entries {
             if entry.ctype == binh!("TooltipFormat") {
                 let name = &binget!(entry => mObjectName(BinString)).expect("missing name").0;
@@ -358,7 +358,7 @@ impl<'a> BinHashGuesser<'a> {
     }
 
     /// Guess entry paths for common types
-    pub fn guess_common_entry_types_paths(&mut self) -> Result<()> {
+    pub fn guess_common_entry_types_paths(&mut self) -> Result<(), PropError> {
         let mut htype_to_field = HashMap::<BinClassName, BinFieldName>::new();
         htype_to_field.insert(binh!("ContextualActionData"), binh!("mObjectPath"));
         htype_to_field.insert(binh!("CustomShaderDef"), binh!("objectPath"));

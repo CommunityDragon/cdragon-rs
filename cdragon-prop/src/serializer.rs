@@ -1,6 +1,9 @@
 use std::io;
-use super::data::*;
-use super::{PropFile, BinEntry};
+use super::{
+    BinEntry,
+    PropFile,
+    data::*,
+};
 
 /// Serialize bin data
 pub trait BinSerializer {

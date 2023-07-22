@@ -61,24 +61,10 @@ impl fmt::Display for Locale {
 }
 
 
-#[derive(Debug)]
+#[derive(thiserror::Error, Debug)]
 pub enum Error {
     /// Invalid code format
+    #[error("invalid locale code")]
     InvalidCode,
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let s = match self {
-            Error::InvalidCode => &"invalid locale code",
-        };
-        f.write_str(s)
-    }
-}
-
-impl std::error::Error for Error {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        None
-    }
 }
 

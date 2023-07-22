@@ -12,15 +12,20 @@ use std::io;
 use std::fs;
 use std::path::Path;
 use std::collections::HashSet;
-
-use cdragon_utils::Result;
-use cdragon_utils::hashes::HashMapper;
+use thiserror::Error;
+use cdragon_utils::{
+    hashes::{HashMapper, HashError},
+    parsing::ParseError,
+};
 use cdragon_wad::WadHashKind;
 pub use serializer::{BinSerializer, BinEntriesSerializer};
 pub use data::*;
 pub use parser::BinEntryScanner;
 pub use text_tree::TextTreeSerializer;
 pub use json::JsonSerializer;
+
+
+type Result<T, E = PropError> = std::result::Result<T, E>;
 
 
 /// Mapper used for bin hashes
@@ -77,14 +82,14 @@ pub type BinHashMappers = BinHashKindMapping<BinHashMapper, HashMapper<u64>>;
 
 impl BinHashMappers {
     /// Create mapper, load all sub-mappers from a directory path
-    pub fn from_dirpath(path: &Path) -> Result<Self> {
+    pub fn from_dirpath(path: &Path) -> Result<Self, HashError> {
         let mut this = Self::default();
         this.load_dirpath(path)?;
         Ok(this)
     }
 
     /// Load all sub-mappers from a directory path
-    pub fn load_dirpath(&mut self, path: &Path) -> Result<()> {
+    pub fn load_dirpath(&mut self, path: &Path) -> Result<(), HashError> {
         for kind in BinHashKind::variants() {
             self.get_mut(kind).load_path(path.join(kind.mapper_path()))?;
         }
@@ -93,7 +98,7 @@ impl BinHashMappers {
     }
 
     /// Write all sub-mappers to a directory path
-    pub fn write_dirpath(&self, path: &Path) -> Result<()> {
+    pub fn write_dirpath(&self, path: &Path) -> Result<(), HashError> {
         for kind in BinHashKind::variants() {
             self.get(kind).write_path(path.join(kind.mapper_path()))?;
         }
@@ -124,14 +129,16 @@ impl PropFile {
 
     /// Iterate on entry headers (path and type) from a PROP reader
     pub fn scan_entries_from_reader<R: io::Read>(reader: R) -> Result<BinEntryScanner<R>> {
-        BinEntryScanner::new(reader)
+        let scanner = BinEntryScanner::new(reader)?;
+        Ok(scanner)
     }
 
     /// Iterate on entry headers (path and type) from a PROP file path
     pub fn scan_entries_from_path<P: AsRef<Path>>(path: P) -> Result<BinEntryScanner<io::BufReader<fs::File>>> {
         let file = fs::File::open(path)?;
         let reader = io::BufReader::new(file);
-        BinEntryScanner::new(reader)
+        let scanner = BinEntryScanner::new(reader)?;
+        Ok(scanner)
     }
 }
 
@@ -193,3 +200,13 @@ pub const NON_PROP_BASENAMES: &[&str]  = &[
     "tftoutofgamecharacterdata.bin",
     "tftmapcharacterlists.bin",
 ];
+
+
+#[derive(Error, Debug)]
+pub enum PropError {
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+    #[error("parsing error")]
+    Parsing(#[from] ParseError),
+}
+

@@ -5,30 +5,19 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::hash::Hash;
 use num_traits::Num;
-use crate::Result;
+use thiserror::Error;
+
+type Result<T, E = HashError> = std::result::Result<T, E>;
 
 
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum HashError {
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+    #[error("invalid hash line: {0:?}")]
     InvalidHashLine(String),
+    #[error("invalid hash value: {0:?}")]
     InvalidHashValue(String),
-    Io(std::io::Error),
-}
-
-impl fmt::Display for HashError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            HashError::InvalidHashLine(s) => write!(f, "invalid hash line: {:?}", s),
-            HashError::InvalidHashValue(s) => write!(f, "invalid hash value: {:?}", s),
-            HashError::Io(e) => e.fmt(f),
-        }
-    }
-}
-
-impl std::error::Error for HashError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        None
-    }
 }
 
 

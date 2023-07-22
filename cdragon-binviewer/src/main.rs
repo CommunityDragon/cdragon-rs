@@ -1,7 +1,6 @@
-use cdragon_binviewer::Model;
+use cdragon_binviewer::App;
 
-#[cfg(target_arch = "wasm32")]
 fn main() {
-    web_logger::init();
-    yew::start_app::<Model>();
+    //yew::Renderer::<App>::new().render();
+    yew::Renderer::<App>::new().render();
 }

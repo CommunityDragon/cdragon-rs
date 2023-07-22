@@ -1,9 +1,9 @@
-use std::fmt;
 use std::rc::Rc;
 use std::cell::RefCell;
 use futures::try_join;
-use log::debug;
-use reqwasm::http::Request;
+use gloo_console::debug;
+use gloo_net::http::Request;
+use thiserror::Error;
 use cdragon_prop::{
     PropFile,
     BinEntry,
@@ -16,23 +16,12 @@ use crate::Result;
 use crate::entrydb::EntryDatabase;
 
 
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum BinLoadError {
-    EntryNotFound,
-}
-
-impl fmt::Display for BinLoadError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            BinLoadError::EntryNotFound => write!(f, "entry not found"),
-        }
-    }
-}
-
-impl std::error::Error for BinLoadError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        None
-    }
+    #[error("entry not found: {0:?}")]
+    EntryNotFound(BinEntryPath),
+    #[error("HTTP error ({0})")]
+    HttpError(u16),
 }
 
 
@@ -41,35 +30,55 @@ type BinDataCache = Rc<(String, Vec<u8>)>;
 
 pub type FetchedHashMappers = BinHashKindMapping<BinHashMapper, ()>;
 
-/// Load bin entries
+/// Load bin entries, hashes, and entry database
+///
+/// This service does not hold a state (aside its cached) and thus can be cloned.
+/// It is not a problem to create new insteances of it.
 #[derive(Default)]
 pub struct BinLoadService {
-    cached_binfile: Rc<RefCell<Option<BinDataCache>>>,
+    cached_binfile: RefCell<Option<BinDataCache>>,
 }
+
+impl Clone for BinLoadService {
+    fn clone(&self) -> Self {
+        Self { cached_binfile: RefCell::default() }
+    }
+}
+
 
 impl BinLoadService {
     /// Fetch the entry from given file with given path
-    pub async fn fetch_entry(&mut self, file: &str, hpath: BinEntryPath) -> Result<BinEntry> {
-        let data = if let Some(cache) = self.cached_binfile.borrow().clone() {
-            cache
-        } else {
-            self.fetch_binfile(file).await?
+    pub async fn fetch_entry(&self, file: &str, hpath: BinEntryPath) -> Result<BinEntry> {
+        gloo_console::console_dbg!(file, hpath);
+        let data = {
+            let cache = self.cached_binfile.borrow().clone();
+            if let Some(data) = cache.filter(|d| d.0 == file) {
+                data
+            } else {
+                let data = self.fetch_binfile(file).await?;
+                self.cached_binfile.replace(Some(data.clone()));
+                data
+            }
         };
 
-        debug!("scanning bin file for entry {:x}", hpath);
+        debug!(format!("scanning bin file for entry: {:?}", hpath));
         let scanner = PropFile::scan_entries_from_reader(data.1.as_slice())?;
         match scanner.filter_parse(|h, _| h == hpath).next() {
             Some(v) => Ok(v?),
-            None => Err(BinLoadError::EntryNotFound)?,
+            None => Err(BinLoadError::EntryNotFound(hpath))?,
         }
     }
 
     async fn fetch_binfile(&self, file: &str) -> Result<BinDataCache> {
+        debug!("fetching bin file", file);
         let uri = static_uri!("bins/{}", file);
-        let data = Request::get(&uri)
-            .send().await?
-            .binary().await?;
-        Ok(BinDataCache::new((file.to_string(), data)))
+        let response = Request::get(&uri).send().await?;
+        if response.ok() {
+            let data = response.binary().await?;
+            Ok(BinDataCache::new((file.to_string(), data)))
+        } else {
+            Err(BinLoadError::HttpError(response.status()).into())
+        }
     }
 
     /// Load all hash maps in the background, the callback will be called once for each map
@@ -91,7 +100,8 @@ impl BinLoadService {
         let data = Request::get(&uri)
             .send().await?
             .binary().await?;
-        BinHashMapper::from_reader(data.as_slice())
+        let hmap = BinHashMapper::from_reader(data.as_slice())?;
+        Ok(hmap)
     }
 
     /// Load the entry database in the background

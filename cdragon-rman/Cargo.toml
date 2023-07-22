@@ -7,5 +7,6 @@ edition = "2021"
 [dependencies]
 cdragon-utils = { path = "../cdragon-utils" }
 nom = "7"
-zstd = "0.11"
+thiserror = "1"
+zstd = "0.12"
 

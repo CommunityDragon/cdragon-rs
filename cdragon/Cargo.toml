@@ -10,7 +10,7 @@ cdragon-prop = { path = "../cdragon-prop" }
 cdragon-rman = { path = "../cdragon-rman" }
 cdragon-utils = { path = "../cdragon-utils" }
 cdragon-wad = { path = "../cdragon-wad" }
-clap = "3"
+clap = "4"
 num-traits = "0.2"
 walkdir = "2"
 

@@ -1,8 +1,8 @@
 use std::{fs, io};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::collections::{HashSet, HashMap};
 use walkdir::{WalkDir, DirEntry};
-use clap::{Command, Arg};
+use clap::{Command, Arg, value_parser};
 use byteorder::{LittleEndian, WriteBytesExt};
 use cdragon_prop::{
     NON_PROP_BASENAMES,
@@ -10,7 +10,8 @@ use cdragon_prop::{
     BinClassName,
     PropFile,
 };
-use cdragon_utils::Result;
+
+type Result<T, E = Box<dyn std::error::Error>> = std::result::Result<T, E>;
 
 
 //XXX Factorize with cdragon/src/main.rs
@@ -147,6 +148,7 @@ fn main() {
         .about("Tools for CDragon bin viewer")
         .arg(Arg::new("verbose")
              .short('v')
+             .action(clap::ArgAction::SetTrue)
              .help("be more verbose"))
         .subcommand(
             Command::new("create-entrydb")
@@ -154,20 +156,23 @@ fn main() {
             .arg(Arg::new("db")
                  .short('o')
                  .value_name("FILE")
+                 .value_parser(value_parser!(PathBuf))
+                 .default_value("entries.db")
                  .help("database file to create"))
             .arg(Arg::new("dir")
                  .value_name("DIR")
                  .required(true)
+                 .value_parser(value_parser!(PathBuf))
                  .help("root path for BIN files"))
             )
         .get_matches();
 
-    let verbose = appm.is_present("verbose");
+    let verbose = appm.get_flag("verbose");
 
     match appm.subcommand() {
         Some(("create-entrydb", subm)) => {
-            let dirpath = subm.value_of("dir").unwrap();
-            let dbpath = subm.value_of("db").unwrap_or("entrydb.data");
+            let dirpath = subm.get_one::<PathBuf>("dir").unwrap();
+            let dbpath = subm.get_one::<PathBuf>("db").unwrap();
             build_entrydb(dirpath, dbpath, verbose).unwrap();
         },
         _ => {

@@ -9,9 +9,13 @@ use nom::{
     bytes::complete::tag,
     sequence::tuple,
 };
-use cdragon_utils::Result;
-use cdragon_utils::parsing::{ParseError, into_err};
-use cdragon_utils::locale::Locale;
+use thiserror::Error;
+use cdragon_utils::{
+    parsing::{ParseError, ReadArray},
+    parse_buf,
+};
+
+type Result<T, E = RmanError> = std::result::Result<T, E>;
 
 
 /// Riot manifest file
@@ -32,7 +36,7 @@ pub struct Rman {
     pub manifest_id: u64,
     body: Vec<u8>,
     offset_bundles: i32,
-    offset_locales: i32,
+    offset_flags: i32,
     offset_files: i32,
     offset_directories: i32,
 }
@@ -77,7 +81,7 @@ impl Rman {
         Ok(Self {
             version, flags, manifest_id, body,
             offset_bundles: offsets.0,
-            offset_locales: offsets.1,
+            offset_flags: offsets.1,
             offset_files: offsets.2,
             offset_directories: offsets.3,
         })
@@ -90,25 +94,23 @@ impl Rman {
         const HEADER_LEN: usize = MAGIC_VERSION_LEN + FIELDS_LEN;
 
         let version = {
-            let mut buf = [0u8; MAGIC_VERSION_LEN];
-            reader.read_exact(&mut buf)?;
-            let (_, (_, major, minor)) = tuple((tag("RMAN"), le_u8, le_u8))(&buf[..]).map_err(into_err)?;
+            let buf = reader.read_array::<MAGIC_VERSION_LEN>()?;
+            let (_, major, minor) = parse_buf!(buf, tuple((tag("RMAN"), le_u8, le_u8)));
             if (major, minor) != (2, 0) {
-                return Err(ParseError::InvalidData(format!("unsupported version: {}.{}", major, minor)).into());
+                return Err(RmanError::UnsupportedVersion(major, minor));
             }
             (major, minor)
         };
 
         let (flags, manifest_id, zstd_length) = {
-            let mut buf = [0u8; FIELDS_LEN];
-            reader.read_exact(&mut buf)?;
-            let (_, (flags, offset, zstd_length, manifest_id, _body_length)) =
-                tuple((le_u16, le_u32, le_u32, le_u64, le_u32))(&buf[..]).map_err(into_err)?;
+            let buf = reader.read_array::<FIELDS_LEN>()?;
+            let (flags, offset, zstd_length, manifest_id, _body_length) =
+                parse_buf!(buf, tuple((le_u16, le_u32, le_u32, le_u64, le_u32)));
             if flags & (1 << 9) == 0 {
-                return Err(ParseError::InvalidData(format!("unsupported flags: {:b}", flags)).into());
+                return Err(RmanError::UnsupportedFlags(flags));
             }
             if offset < HEADER_LEN as u32 {
-                return Err(ParseError::InvalidData(format!("invalid body offset (too short): {}", offset)).into());
+                return Err(ParseError::Error.into());
             } else if offset > HEADER_LEN as u32 {
                 let skipped_len = offset - HEADER_LEN as u32;
                 std::io::copy(&mut reader.take(skipped_len as u64), &mut std::io::sink())?;
@@ -136,10 +138,10 @@ impl Rman {
         )
     }
 
-    /// Iterate on locale codes
-    pub fn iter_locales(&self) -> OffsetTableIter<'_, LocaleEntry> {
-        let cursor = BodyCursor::new(&self.body, self.offset_locales);
-        OffsetTableIter::new(cursor, parse_locale_entry)
+    /// Iterate on flags (locales, platforms)
+    pub fn iter_flags(&self) -> OffsetTableIter<'_, FileFlagEntry> {
+        let cursor = BodyCursor::new(&self.body, self.offset_flags);
+        OffsetTableIter::new(cursor, parse_flag_entry)
     }
 
     /// Iterate on bundles
@@ -220,7 +222,7 @@ impl<'a> BodyCursor<'a> {
 
     fn fields_cursor(mut self) -> BodyFieldsCursor<'a> {
         let entry_offset = self.offset();
-        let fields_offset = entry_offset - self.read_i32();
+        let fields_offset = entry_offset - self.read_i32() + 2 * 2;  // Note: skip the 2 header fields
         BodyFieldsCursor { body: self.body, fields_offset, entry_offset }
     }
 
@@ -305,26 +307,22 @@ impl<'a> BodyFieldsCursor<'a> {
         self.field_slice(field, 8).map(|s| u64::from_le_bytes(s.try_into().unwrap()))
     }
 
-    /// Read an offset value, return an absolute body offset
-    fn get_offset(&self, field: u8) -> Option<i32> {
-        self.get_i32(field).map(|o| self.entry_offset + o + self.field_offset(field))
+    /// Read an offset value, return a body cursor at this offset
+    fn get_offset_cursor(&self, field: u8) -> Option<BodyCursor<'a>> {
+        self.get_i32(field).map(|o| {
+            let offset = self.entry_offset + o + self.field_offset(field);
+            BodyCursor::new(self.body, offset)
+        })
     }
 
     /// Read an offset value, then string at given offset
     fn get_str(&self, field: u8) -> Option<&'a str> {
-        self.get_offset(field).map(|o| {
-            let mut cursor = BodyCursor::new(self.body, o);
+        self.get_offset_cursor(field).map(|mut cursor| {
             let len = cursor.read_i32();
             let slice = cursor.read_slice(len);
             std::str::from_utf8(slice).expect("invalid UTF-8 string in RMAN")
         })
     }
-
-    fn get_subcursor(&self, field: u8) -> BodyCursor<'a> {
-        let offset = self.field_offset(field);
-        BodyCursor::new(self.body, self.entry_offset + offset)
-    }
-
 }
 
 
@@ -367,12 +365,14 @@ impl<'a, I> Iterator for OffsetTableIter<'a, I> {
 }
 
 
-/// Locale defined in RMAN
-pub struct LocaleEntry {
-    /// Locale ID
+/// File flag defined in RMAN
+///
+/// Flags are locale codes (e.g. `en_US`) or platform (e.g. `macos`).
+pub struct FileFlagEntry<'a> {
+    /// Flag ID
     pub id: u8,
-    /// Locale 
-    pub locale: Locale,
+    /// Flag value 
+    pub flag: &'a str,
 }
 
 
@@ -404,12 +404,12 @@ impl<'a> BundleEntry<'a> {
 pub struct ChunkEntry {
     /// Chunk ID
     pub id: u64,
-    /// Offset of chunk in bundle
-    pub bundle_offset: u32,
     /// Size of chunk in bundle, compressed
     pub bundle_size: u32,
     /// Size of chunk, uncompressed
     pub target_size: u32,
+    /// Offset of chunk in bundle
+    pub bundle_offset: u32,
 }
 
 /// File information from RMAN
@@ -424,8 +424,8 @@ pub struct FileEntry<'a> {
     pub directory_id: Option<u64>,
     /// Size of the file, when extracted
     pub filesize: u32,
-    /// For localized files, locales for which it is used
-    pub locales: Option<LocaleSet>,
+    /// Flags, used to filter which files need to be installed
+    pub flags: Option<FileFlagSet>,
     chunks_cursor: BodyCursor<'a>,
 }
 
@@ -514,20 +514,20 @@ impl<'a> Iterator for FileChunksIter<'a> {
 }
 
 
-/// Set of locales, as a bitmask
-pub struct LocaleSet {
+/// Set of file flags, as a bitmask
+pub struct FileFlagSet {
     mask: u64,
 }
 
-impl LocaleSet {
-    /// Iterate on locales set in the mask
-    pub fn iter<'a, I: Iterator<Item=&'a LocaleEntry>>(&self, locales_it: I) -> impl Iterator<Item=&'a Locale> {
+impl FileFlagSet {
+    /// Iterate on flags set in the mask
+    pub fn iter<'a, I: Iterator<Item=&'a FileFlagEntry<'a>>>(&self, flags_it: I) -> impl Iterator<Item=&'a str> {
         let mask = self.mask;
-        locales_it.filter_map(move |e| {
+        flags_it.filter_map(move |e| {
             if mask & (1 << e.id) == 0 {
                 None
             } else {
-                Some(&e.locale)
+                Some(e.flag)
             }
         })
     }
@@ -567,83 +567,98 @@ impl<'a> DirectoryEntry<'a> {
 }
 
 
-fn parse_locale_entry(mut cursor: BodyCursor) -> LocaleEntry {
+fn parse_flag_entry(mut cursor: BodyCursor) -> FileFlagEntry {
     // Skip field offsets, assume fixed ones
     cursor.skip(4);
     cursor.skip(3);
-    let locale_id = cursor.read_u8();
-    let locale = {
+    let flag_id = cursor.read_u8();
+    let flag = {
         let mut cursor = cursor.subcursor();
         let len = cursor.read_i32();
         let slice = cursor.read_slice(len);
-        Locale::from_bytes(slice).expect("invalid locale in RMAN")
+        std::str::from_utf8(slice).expect("invalid UTF-8 string for RMAN file flag")
     };
-    LocaleEntry { id: locale_id, locale }
+    FileFlagEntry { id: flag_id, flag }
 }
 
-fn parse_bundle_entry(mut cursor: BodyCursor) -> BundleEntry {
-    // Skip field offsets, assume fixed ones
-    cursor.skip(4);
-    let header_size = cursor.read_i32();
-    let bundle_id = cursor.read_u64();
-    // skip remaining header part, if any
-    cursor.skip(header_size - 12);
+fn parse_bundle_entry(cursor: BodyCursor) -> BundleEntry {
+    // Field offsets
+    //   0  bundle ID
+    //   1  chunks offset
+    let cursor = cursor.fields_cursor();
 
-    BundleEntry { id: bundle_id, cursor }
+    let bundle_id = cursor.get_u64(0).expect("missing bundle ID field");
+    let chunks_cursor = cursor.get_offset_cursor(1).expect("missing chunks offset field");
+
+    BundleEntry { id: bundle_id, cursor: chunks_cursor }
 }
 
-fn parse_chunk_entry(mut cursor: BodyCursor) -> ChunkEntry {
-    // Skip field offsets, assume fixed ones
-    cursor.skip(4);
-    let bundle_size = cursor.read_u32();
-    let target_size = cursor.read_u32();
-    let chunk_id = cursor.read_u64();
+fn parse_chunk_entry(cursor: BodyCursor) -> ChunkEntry {
+    // Field offsets
+    //   0  chunk ID
+    //   1  bundle size, compressed
+    //   2  chunk size, uncompressed
+
+    let cursor = cursor.fields_cursor();
+
+    let chunk_id = cursor.get_u64(0).expect("missing chunk ID field");
+    let bundle_size = cursor.get_u32(1).expect("missing chunk compressed size");
+    let target_size = cursor.get_u32(2).expect("missing chunk uncompressed size");
 
     // Note: bundle_offset is set later, by `BundleEntry::iter_chunks()`
-    ChunkEntry { id: chunk_id, bundle_offset: 0, bundle_size, target_size }
+    ChunkEntry { id: chunk_id, bundle_size, target_size, bundle_offset: 0 }
 }
 
 fn parse_file_entry(cursor: BodyCursor) -> FileEntry {
-    // Get field offsets
-    //   0  size of field list, including this field
-    //   1  end of fields (chunks list)
-    //   2  file ID
-    //   3  directory ID
-    //   4  file size
-    //   5  name (offset)
-    //   6  locales (mask)
-    //   7  ?
+    // Field offsets
+    //   0  file ID
+    //   1  directory ID
+    //   2  file size
+    //   3  name (offset)
+    //   4  flags (mask)
+    //   5  ?
+    //   6  ?
+    //   7  chunks (offset)
     //   8  ?
-    //   9  ? (related to entry size)
+    //   9  link (str, offset)
     //  10  ?
-    //  11  link (offset)
-    //  12  ?
-    //  13  ? (present and set to 1 for localized WADs)
-    //  14  file type (1: executable, 2: regular)
-
+    //  11  ? (present and set to 1 for localized WADs)
+    //  12  file type (1: executable, 2: regular)
     let cursor = cursor.fields_cursor();
-    assert!(cursor.field_offset(0) >= 14);
 
-    let file_id = cursor.get_u64(2).expect("missing file ID field");
-    let directory_id = cursor.get_u64(3);
-    let filesize = cursor.get_u32(4).expect("missing file size field");
-    let name = cursor.get_str(5).expect("missing file name field");
-    let locales = cursor.get_u64(6).map(|mask| LocaleSet { mask });
-    let link = cursor.get_str(11).filter(|v| !v.is_empty());
-    let chunks_cursor = cursor.get_subcursor(1);
+    let file_id = cursor.get_u64(0).expect("missing file ID field");
+    let directory_id = cursor.get_u64(1);
+    let filesize = cursor.get_u32(2).expect("missing file size field");
+    let name = cursor.get_str(3).expect("missing file name field");
+    let flags = cursor.get_u64(4).map(|mask| FileFlagSet { mask });
+    let chunks_cursor = cursor.get_offset_cursor(7).expect("missing chunks cursor field");
+    let link = cursor.get_str(9).filter(|v| !v.is_empty());
 
     FileEntry {
         id: file_id, name, link, directory_id,
-        filesize, locales, chunks_cursor,
+        filesize, flags, chunks_cursor,
     }
 }
 
 fn parse_directory_entry(cursor: BodyCursor) -> DirectoryEntry {
     let cursor = cursor.fields_cursor();
-    let directory_id = cursor.get_u64(2).unwrap_or(0);
-    let parent_id = cursor.get_u64(3);
-    let name = cursor.get_str(4).expect("missing directory name field");
+    let directory_id = cursor.get_u64(0).unwrap_or(0);
+    let parent_id = cursor.get_u64(1);
+    let name = cursor.get_str(2).expect("missing directory name field");
 
     DirectoryEntry { id: directory_id, parent_id, name }
+}
+
+
+#[derive(Error, Debug)]
+pub enum RmanError {
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+    #[error("parsing error")]
+    Parsing(#[from] ParseError),
+    #[error("version not supported: {0}.{1}")]
+    UnsupportedVersion(u8, u8),
+    #[error("flags not supported: {0:b}")]
+    UnsupportedFlags(u16),
 }
 

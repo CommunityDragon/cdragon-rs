@@ -8,6 +8,6 @@ edition = "2021"
 cdragon-prop = { path = "../cdragon-prop" }
 cdragon-utils = { path = "../cdragon-utils" }
 walkdir = "2"
-clap = "3"
+clap = "4"
 byteorder = "1"
 

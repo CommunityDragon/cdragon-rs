@@ -1,7 +1,7 @@
 use std::fmt;
 use std::io::BufRead;
 use std::collections::{HashMap, hash_map};
-use log::debug;
+use gloo_console::debug;
 use regex::{RegexSet, RegexSetBuilder};
 use byteorder::{LittleEndian, ReadBytesExt};
 use cdragon_prop::{
@@ -96,8 +96,8 @@ impl EntryDatabase {
             entries
         };
 
-        debug!("entry database loaded ({} entries, {} types, {} files)",
-            entries.len(), types.len(), filenames.len());
+        debug!(format!("entry database loaded ({} entries, {} types, {} files)",
+            entries.len(), types.len(), filenames.len()));
 
         Ok(Self { entries, types, filenames })
     }

@@ -1,6 +1,5 @@
-//! Support of WAD files
+//! Support of Rio WAD archive files
 
-use std::fmt;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom, BufReader};
 use std::path::Path;
@@ -8,22 +7,25 @@ use std::hash::Hasher;
 use nom::{
     number::complete::{le_u8, le_u16, le_u32, le_u64},
     bytes::complete::tag,
-    combinator::map,
+    combinator::{map, map_res},
     sequence::tuple,
 };
-use num_enum::TryFromPrimitive;
+use thiserror::Error;
 use twox_hash::XxHash64;
-use cdragon_utils::Result;
-use cdragon_utils::hashes::HashMapper;
-use cdragon_utils::GuardedFile;
-use cdragon_utils::parsing::{ParseError, into_err};
-use cdragon_utils::declare_hash_type;
+use cdragon_utils::{
+    GuardedFile,
+    hashes::{HashMapper, HashError},
+    parsing::{ParseError, ReadArray},
+    declare_hash_type,
+    parse_buf,
+};
+
+type Result<T, E = WadError> = std::result::Result<T, E>;
 
 
 /// Riot WAD archive file
 ///
-/// Entry headers are read and stored on the instance, but not parsed.
-/// Entries are parsed each time they are iterated on.
+/// Store information from the header and list of entries.
 pub struct Wad {
     pub version: (u8, u8),
     entry_count: u32,
@@ -47,24 +49,13 @@ impl Wad {
         Ok(Self { version, entry_count, entry_data })
     }
 
-    /// Open a WAD from its path, also returns the created reader
-    ///
-    /// The reader can be used to read entries afterwards.
-    pub fn open<P: AsRef<Path>>(path: P) -> Result<(Self, BufReader<File>)> {
-        let file = File::open(path.as_ref())?;
-        let mut reader = BufReader::new(file);
-        let wad = Wad::read(&mut reader)?;
-        Ok((wad, reader))
-    }
-
     /// Parse header, advance to the beginning of the body
     fn parse_header<R: Read + Seek>(reader: &mut R) -> Result<((u8, u8), u32, u64)> {
         const MAGIC_VERSION_LEN: usize = 2 + 2;
 
         let version = {
-            let mut buf = [0u8; MAGIC_VERSION_LEN];
-            reader.read_exact(&mut buf)?;
-            let (_, (_, major, minor)) = tuple((tag("RW"), le_u8, le_u8))(&buf[..]).map_err(into_err)?;
+            let buf = reader.read_array::<MAGIC_VERSION_LEN>()?;
+            let (_, major, minor) = parse_buf!(buf, tuple((tag("RW"), le_u8, le_u8)));
             (major, minor)
         };
 
@@ -72,53 +63,189 @@ impl Wad {
             2 => {
                 // Skip "useless" fields
                 reader.seek(SeekFrom::Current(84 + 8))?;
-                let mut buf = [0u8; 2 + 2 + 4];
-                reader.read_exact(&mut buf)?;
-                let (_, (entry_offset, entry_size, entry_count)) =
-                    tuple((le_u16, le_u16, le_u32))(&buf[..]).map_err(into_err)?;
+                let buf = reader.read_array::<{2 + 2 + 4}>()?;
+                let (entry_offset, entry_size, entry_count) = parse_buf!(buf, tuple((le_u16, le_u16, le_u32)));
                 // Not supported because it's not needed, but could be
                 if entry_size != 32 {
-                    return Err(ParseError::InvalidData(format!("unexpected entry size: {}", entry_size)).into());
+                    return Err(WadError::UnsupportedV2EntrySize(entry_size));
                 }
                 (entry_count, entry_offset as u64)
             }
             3 => {
                 // Skip "useless" fields
                 reader.seek(SeekFrom::Current(264))?;
-                let mut buf = [0u8; 4];
-                reader.read_exact(&mut buf)?;
-                let (_, entry_count) = le_u32(&buf[..]).map_err(into_err)?;
+                let buf = reader.read_array::<4>()?;
+                let entry_count = parse_buf!(buf, le_u32);
                 let entry_offset = reader.stream_position()?;
                 (entry_count, entry_offset)
             }
             // Note: version 1 could be supported
-            _ => return Err(ParseError::InvalidData(format!("unsupported version: {}.{}", version.0, version.1)).into()),
+            _ => return Err(WadError::UnsupportedVersion(version.0, version.1)),
         };
 
         Ok((version, entry_count, entry_offset))
     }
 
     /// Iterate on entries
-    pub fn iter_entries(&self) -> impl Iterator<Item=WadEntry> + '_ {
+    pub fn iter_entries(&self) -> impl Iterator<Item=Result<WadEntry>> + '_ {
         (0..self.entry_count as usize).map(move |i| self.parse_entry(i))
     }
 
     /// Parse entry at given index 
-    fn parse_entry(&self, index: usize) -> WadEntry {
+    fn parse_entry(&self, index: usize) -> Result<WadEntry> {
         let offset = index * Self::ENTRY_LEN;
-        let buffer = &self.entry_data[offset .. offset + Self::ENTRY_LEN];
+        let buf = &self.entry_data[offset .. offset + Self::ENTRY_LEN];
 
-        let (_, (path, offset, size, target_size, data_type, duplicate, _, data_hash)) =
-            tuple((
-                    map(le_u64, WadEntryHash::from), le_u32, le_u32, le_u32,
-                    map(le_u8, |v| WadDataType::try_from(v).expect("invalid WAD data type")),
-                    map(le_u8, |v| v != 0), le_u16, le_u64,
-                    ))(buffer).map_err(into_err).expect("failed to parse WAD entry");
-        WadEntry { path, offset, size, target_size, data_type, duplicate, data_hash }
+        let (path, offset, size, target_size, data_format, duplicate, first_subchunk_index, data_hash) =
+            parse_buf!(buf, tuple((
+                        map(le_u64, WadEntryHash::from), le_u32, le_u32, le_u32,
+                        map_res(le_u8, WadDataFormat::try_from),
+                        map(le_u8, |v| v != 0), le_u16, le_u64,
+            )));
+        Ok(WadEntry { path, offset, size, target_size, data_format, duplicate, first_subchunk_index, data_hash })
+    }
+
+    /// Find '.subchunktoc' file, if one exists
+    fn find_subchunk_toc(&self, hmapper: &WadHashMapper) -> Option<WadEntry> {
+        for entry in self.iter_entries().flatten() {
+            if let Some(path) = hmapper.get(entry.path.hash) {
+                if path.ends_with(".subchunktoc") {
+                    return Some(entry)
+                }
+            }
+        }
+        None
     }
 }
 
+/// Read WAD archive files and their entries
+///
+/// This should be the prefered way to read a WAD file.
+pub struct WadReader<R: Read + Seek> {
+    reader: R,
+    wad: Wad,
+    subchunk_toc: Vec<WadSubchunkTocEntry>,
+}
+
+impl<R: Read + Seek> WadReader<R> {
+    /// Load subchunks data from a '.subchunktoc' file
+    ///
+    /// Return whether data has been found, and loaded
+    pub fn load_subchunk_toc(&mut self, hmapper: &WadHashMapper) -> Result<bool> {
+        if let Some(entry) = self.wad.find_subchunk_toc(hmapper) {
+            const TOC_ITEM_LEN: usize = 4 + 4 + 8;
+            let nitems = entry.target_size as usize / TOC_ITEM_LEN;
+            self.subchunk_toc.clear();
+            self.subchunk_toc.reserve_exact(nitems);
+
+            let mut subchunk_toc = Vec::new();
+            {
+                let mut reader = self.read_entry(&entry)?;
+                for _ in 0..nitems {
+                    let buf = reader.read_array::<TOC_ITEM_LEN>()?;
+                    let (size, target_size, data_hash) = parse_buf!(buf, tuple((le_u32, le_u32, le_u64)));
+                    subchunk_toc.push(WadSubchunkTocEntry { size, target_size, data_hash });
+                }
+            }
+            self.subchunk_toc = subchunk_toc;
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
+    /// Read an entry data
+    ///
+    /// The entry must not be a redirection.
+    pub fn read_entry(&mut self, entry: &WadEntry) -> Result<Box<dyn Read + '_>, WadError> {
+        self.reader.seek(SeekFrom::Start(entry.offset as u64))?;
+        let mut reader = Read::take(&mut self.reader, entry.size as u64);
+        match entry.data_format {
+            WadDataFormat::Uncompressed => {
+                Ok(Box::new(reader))
+            }
+            WadDataFormat::Gzip => Err(WadError::UnsupportedDataFormat(entry.data_format)),
+            WadDataFormat::Redirection => Err(WadError::UnsupportedDataFormat(entry.data_format)),
+            WadDataFormat::Zstd => {
+                let decoder = zstd::stream::read::Decoder::new(reader)?;
+                Ok(Box::new(decoder))
+            }
+            WadDataFormat::Chunked(subchunk_count) => {
+                if self.subchunk_toc.is_empty() {
+                    Err(WadError::MissingSubchunkToc)
+                } else {
+                    // Allocate the whole final buffer and read everything right no
+                    // It would be possible to implement a custom reader but that's not worth the
+                    // complexity
+                    let mut result = Vec::with_capacity(entry.target_size as usize);
+                    for i in 0..subchunk_count {
+                        let subchunk_entry = &self.subchunk_toc[(entry.first_subchunk_index + i as u16) as usize];
+                        let mut subchunk_reader = Read::take(&mut reader, subchunk_entry.size as u64);
+                        if subchunk_entry.size == subchunk_entry.target_size {
+                            // Assume no compression
+                            subchunk_reader.read_to_end(&mut result)?;
+                        } else {
+                            zstd::stream::read::Decoder::new(subchunk_reader)?.read_to_end(&mut result)?;
+                        }
+                    }
+                    Ok(Box::new(std::io::Cursor::new(result)))
+                }
+            }
+        }
+    }
+
+    /// Extract an entry to the given path
+    pub fn extract_entry(&mut self, entry: &WadEntry, path: &Path) -> Result<()> {
+        let mut gfile = GuardedFile::create(path)?;
+        let mut reader = self.read_entry(entry)?;
+        std::io::copy(&mut *reader, gfile.as_file_mut())?;
+        gfile.persist();
+        Ok(())
+    }
+
+    /// Guess the extension of an entry
+    pub fn guess_entry_extension(&mut self, entry: &WadEntry) -> Option<&'static str> {
+        if entry.target_size == 0 {
+            return None;
+        }
+        let mut reader = self.read_entry(entry).ok()?;
+        guess_extension(&mut reader)
+    }
+
+    /// Iterate on entries
+    pub fn iter_entries(&self) -> impl Iterator<Item=Result<WadEntry>> + '_ {
+        self.wad.iter_entries()
+    }
+}
+
+/// Read WAD from a file
+pub type WadFile = WadReader<BufReader<File>>;
+
+impl WadFile {
+    /// Open a WAD from its path
+    pub fn open<P: AsRef<Path>>(path: P) -> Result<Self> {
+        let file = File::open(path.as_ref())?;
+        let mut reader = BufReader::new(file);
+        let wad = Wad::read(&mut reader)?;
+        Ok(Self { reader, wad, subchunk_toc: Vec::new(), })
+    }
+}
+
+
+/// Subchunk TOC item data
+struct WadSubchunkTocEntry {
+    /// Subchunk size, compressed
+    size: u32,
+    /// Subchunk size, uncompressed
+    target_size: u32,
+    /// First 8 bytes of sha256 hash of data
+    #[allow(dead_code)]
+    data_hash: u64,
+}
+
+
 /// Information on a single file in a WAD
+#[allow(dead_code)]
 pub struct WadEntry {
     /// File path of the entry, hashed
     pub path: WadEntryHash,
@@ -127,54 +254,20 @@ pub struct WadEntry {
     /// Size in the WAD (possibly compressed)
     size: u32,
     /// Uncompressed size
-    pub target_size: u32,
-    data_type: WadDataType,
+    target_size: u32,
+    /// Format of the entry data in the WAD file
+    data_format: WadDataFormat,
     /// True for duplicate entries
-    pub duplicate: bool,
+    duplicate: bool,
+    /// Index of the first subchunk (only relevant for chunked data)
+    first_subchunk_index: u16,
     /// First 8 bytes of sha256 hash of data
-    pub data_hash: u64,
+    data_hash: u64,
 }
 
 impl WadEntry {
     pub fn is_redirection(&self) -> bool {
-        self.data_type == WadDataType::Redirection
-    }
-
-    /// Read entry data from a reader
-    ///
-    /// The entry must not be a redirection.
-    pub fn read<'a, R: Read + Seek>(&self, reader: &'a mut R) -> Result<Box<dyn Read + 'a>> {
-        reader.seek(SeekFrom::Start(self.offset as u64))?;
-        let reader = Read::take(reader, self.size as u64);
-        match self.data_type {
-            WadDataType::Uncompressed => {
-                Ok(Box::new(reader))
-            }
-            WadDataType::Gzip => Err(WadError::NotSupported("gzip entries not supported").into()),
-            WadDataType::Redirection => Err(WadError::UnexpectedRedirection.into()),
-            WadDataType::Zstd => {
-                let decoder = zstd::stream::read::Decoder::new(reader)?;
-                Ok(Box::new(decoder))
-            }
-        }
-    }
-
-    /// Extract entry to the given path
-    pub fn extract<R: Read + Seek>(&self, reader: &mut R, path: &Path) -> Result<()> {
-        let mut gfile = GuardedFile::create(path)?;
-        let mut reader = self.read(reader)?;
-        std::io::copy(&mut *reader, gfile.as_file_mut())?;
-        gfile.persist();
-        Ok(())
-    }
-
-    /// Guess the extension of an entry
-    pub fn guess_extension<R: Read + Seek>(&self, reader: &mut R) -> Option<&'static str> {
-        if self.target_size == 0 {
-            return None;
-        }
-        let mut reader = self.read(reader).ok()?;
-        guess_extension(&mut reader)
+        self.data_format == WadDataFormat::Redirection
     }
 }
 
@@ -233,14 +326,14 @@ impl WadHashKind {
 
 impl WadHashMappers {
     /// Create mapper, load all sub-mappers from a directory path
-    pub fn from_dirpath(path: &Path) -> Result<Self> {
+    pub fn from_dirpath(path: &Path) -> Result<Self, HashError> {
         let mut this = Self::default();
         this.load_dirpath(path)?;
         Ok(this)
     }
 
     /// Load all sub-mappers from a directory path
-    pub fn load_dirpath(&mut self, path: &Path) -> Result<()> {
+    pub fn load_dirpath(&mut self, path: &Path) -> Result<(), HashError> {
         self.lcu.load_path(path.join(WadHashKind::Lcu.mapper_path()))?;
         self.game.load_path(path.join(WadHashKind::Game.mapper_path()))?;
         Ok(())
@@ -262,14 +355,30 @@ impl WadHashMappers {
 
 
 #[allow(dead_code)]
-#[repr(u8)]
-#[derive(Copy, Clone, Eq, PartialEq, TryFromPrimitive, Debug)]
-enum WadDataType {
-    Uncompressed = 0,
-    Gzip = 1,
-    Redirection = 2,
-    Zstd = 3,
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub enum WadDataFormat {
+    Uncompressed,
+    Gzip,
+    Redirection,
+    Zstd,
+    Chunked(u8),
 }
+
+impl TryFrom<u8> for WadDataFormat {
+    type Error = WadError;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Self::Uncompressed),
+            1 => Ok(Self::Gzip),
+            2 => Ok(Self::Redirection),
+            3 => Ok(Self::Zstd),
+            b if b & 0xf == 4 => Ok(Self::Chunked(b >> 4)),
+            _ => Err(WadError::InvalidDataFormat(value)),
+        }
+    }
+}
+
 
 /// Guess file extension from a reader
 fn guess_extension(reader: &mut dyn Read) -> Option<&'static str> {
@@ -301,6 +410,7 @@ fn guess_extension(reader: &mut dyn Read) -> Option<&'static str> {
         (b"\x02\x3d\x00\x28", "troybin"),
         (b"[ObjectBegin]", "sco"),
         (b"OEGM", "mapgeo"),
+        (b"TEX\0", "tex"),
     ];
 
     // Use a sufficient length for all extensions (this is not checked)
@@ -325,26 +435,21 @@ fn guess_extension(reader: &mut dyn Read) -> Option<&'static str> {
 }
 
 
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum WadError {
-    /// WAD format is not supported
-    NotSupported(&'static str),
-    /// Unexpected access to a redirection entry
-    UnexpectedRedirection,
-}
-
-impl fmt::Display for WadError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            WadError::NotSupported(s) => f.write_str(s),
-            WadError::UnexpectedRedirection => write!(f, "unexpected redirection entry"),
-        }
-    }
-}
-
-impl std::error::Error for WadError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        None
-    }
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+    #[error("parsing error")]
+    Parsing(#[from] ParseError),
+    #[error("invalid WAD entry data format: {0}")]
+    InvalidDataFormat(u8),
+    #[error("WAD version not supported: {0}.{1}")]
+    UnsupportedVersion(u8, u8),
+    #[error("WAD entry data format not supported for reading: {0:?}")]
+    UnsupportedDataFormat(WadDataFormat),
+    #[error("WAD V2 entry size not supported: {0}")]
+    UnsupportedV2EntrySize(u16),
+    #[error("missing subchunk TOC to read chunked entry")]
+    MissingSubchunkToc,
 }
 

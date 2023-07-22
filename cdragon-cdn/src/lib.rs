@@ -3,8 +3,10 @@
 use std::io::{Read, BufRead, BufReader, BufWriter};
 use std::path::Path;
 use std::collections::HashMap;
-use reqwest::{Url, header, IntoUrl, blocking::{Client, Response}};
-use cdragon_utils::{GuardedFile, Result};
+use reqwest::{header, IntoUrl, blocking::{Client, Response}};
+use url::Url;
+use thiserror::Error;
+use cdragon_utils::GuardedFile;
 use cdragon_rman::FileBundleRanges;
 // Re-exports
 pub use serde_json;
@@ -13,6 +15,8 @@ mod guarded_map;
 use guarded_map::GuardedMmap;
 
 pub mod storage;
+
+type Result<T, E = CdnError> = std::result::Result<T, E>;
 
 
 /// CDN from which game files can be downloaded
@@ -49,12 +53,14 @@ impl CdnDownloader {
 
     /// Download a CDN path to a file
     pub fn download_path(&self, path: &str, output: &Path) -> Result<()> {
-        self.download_url_(self.url.join(path)?, output)
+        self.download_url_(self.url.join(path)?, output)?;
+        Ok(())
     }
 
     /// Download any URL to a file, using the instance client
     pub fn download_url<U: IntoUrl>(&self, url: U, output: &Path) -> Result<()> {
-        self.download_url_(url.into_url()?, output)
+        self.download_url_(url.into_url()?, output)?;
+        Ok(())
     }
 
     fn download_url_(&self, url: Url, output: &Path) -> Result<()> {
@@ -250,7 +256,7 @@ pub fn get_latest_lol_game_release(client: &mut Client, platform: &str) -> Resul
 fn build_range_header(ranges: &[(u32, u32)]) -> String {
     let http_ranges = ranges
         .iter()
-        .map(|(begin, end)| format!("{}-{}", begin, end))
+        .map(|(begin, end)| format!("{}-{}", begin, end - 1))
         .collect::<Vec<String>>()
         .join(",");
     format!("bytes={}", http_ranges)
@@ -260,5 +266,22 @@ fn build_range_header(ranges: &[(u32, u32)]) -> String {
 fn serde_error<T: std::fmt::Display>(msg: T) -> serde_json::Error {
     use serde::de::Error;
     serde_json::Error::custom(msg)
+}
+
+
+#[derive(Error, Debug)]
+pub enum CdnError {
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+    #[error(transparent)]
+    Url(#[from] url::ParseError),
+    #[error(transparent)]
+    Client(#[from] reqwest::Error),
+    #[error(transparent)]
+    Manifest(#[from] cdragon_rman::RmanError),
+    #[error("deserialization failed")]
+    Deserialize(#[from] serde_json::Error),
+    #[error("invalid manifest URL")]
+    InvalidManifestUrl,
 }
 

@@ -1,9 +1,13 @@
 use std::io;
 use std::io::Write;
-use super::data::*;
-use super::{BinEntry, BinHashMappers};
-use super::serializer::{BinSerializer, BinEntriesSerializer, BinSerializable};
-use super::{binvalue_map_type, binvalue_map_keytype};
+use super::{
+    BinEntry,
+    BinHashMappers,
+    data::*,
+    serializer::{BinSerializer, BinEntriesSerializer, BinSerializable},
+    binvalue_map_keytype,
+    binvalue_map_type,
+};
 
 
 macro_rules! indented {

@@ -1,27 +1,26 @@
 use std::fmt;
-use log::{debug, error};
+use std::rc::Rc;
+use gloo_console::{debug, error};
 use yew::prelude::*;
-use yew::{classes, html, Component, Html, Callback};
 use wasm_bindgen::UnwrapThrowExt;
 use cdragon_prop::{
     BinEntryPath,
     BinClassName,
     BinEntry,
 };
-use super::SharedStateRef;
 use binview::{BinViewBuilder, view_binfield};
-use super::Msg as ModelMsg;
+use super::AppState;
 
 
 #[derive(Default)]
 pub struct ResultEntry {
+    state: Rc<AppState>,
     entry: Option<BinEntry>,
 }
 
 pub enum Msg {
     ToggleCollapse,
     SetEntry(BinEntry),
-    Forward(ModelMsg),
 }
 
 impl fmt::Debug for Msg {
@@ -29,18 +28,15 @@ impl fmt::Debug for Msg {
         match self {
             Msg::ToggleCollapse => write!(f, "ToggleCollapse"),
             Msg::SetEntry(_) => write!(f, "SetEntry(entry)"),
-            Msg::Forward(m) => write!(f, "Forward({:?})", m),
         }
     }
 }
 
 
-#[derive(Properties)]
+#[derive(Properties, PartialEq)]
 pub struct Props {
-    pub state: SharedStateRef,
     pub hpath: BinEntryPath,
     pub htype: BinClassName,
-    pub send_model: Callback<ModelMsg>,
     /// Force expand and scroll into view if true, do nothing if false
     #[prop_or_default]
     pub select: bool,
@@ -53,23 +49,22 @@ impl Props {
     }
 }
 
-impl PartialEq for Props {
-    fn eq(&self, other: &Self) -> bool {
-        std::rc::Rc::ptr_eq(&self.state, &other.state) &&
-        self.hpath.eq(&other.hpath) &&
-        self.htype.eq(&other.htype) &&
-        self.send_model.eq(&other.send_model) &&
-        self.select.eq(&other.select)
-    }
-}
-
 impl Component for ResultEntry {
     type Message = Msg;
     type Properties = Props;
 
     fn create(ctx: &Context<Self>) -> Self {
+        let (state, _listener) = ctx
+            .link()
+            //XXX Here Services changes are ignored; could have used `callback(ComponentMsg::Something)`
+            .context::<Rc<AppState>>(ctx.link().batch_callback(|_| None))
+            .expect("context mut be set");
+
         let props = ctx.props();
-        let mut entry = ResultEntry::default();
+        let mut entry = ResultEntry {
+            state,
+            entry: None,
+        };
         if props.select {
             entry.select_entry(ctx); //TODO
         }
@@ -77,7 +72,7 @@ impl Component for ResultEntry {
     }
 
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
-        debug!("ResultEntry message: {:?}", msg);
+        debug!(format!("ResultEntry message: {:?}", msg));
         match msg {
             Msg::ToggleCollapse => {
                 if self.is_collapsed() {
@@ -93,15 +88,10 @@ impl Component for ResultEntry {
                 self.entry = Some(entry);
                 true
             },
-
-            Msg::Forward(m) => {
-                ctx.props().send_model.emit(m);
-                false
-            }
         }
     }
 
-    fn changed(&mut self, ctx: &Context<Self>) -> bool {
+    fn changed(&mut self, ctx: &Context<Self>, _old_props: &Self::Properties) -> bool {
         let props = ctx.props();
         if self.entry.as_ref().map(|e| e.path) != Some(props.hpath) {
             self.entry = None;
@@ -114,13 +104,12 @@ impl Component for ResultEntry {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         let props = ctx.props();
-        let mappers = &props.state.as_ref().borrow().hash_mappers;
-        let mut b = BinViewBuilder::new(mappers);
+        let mut b = BinViewBuilder::new(&self.state.services.hash_mappers);
         let item_class = if self.entry.is_none() { "collapsed" } else { "" };
         let onclick_htype = props.htype.clone();
 
         let on_header_click = ctx.link().callback(|_| Msg::ToggleCollapse);
-        let on_type_click = ctx.link().callback(move |_| Msg::Forward(ModelMsg::FilterEntryType(onclick_htype)));
+        let on_type_click = self.state.filter_entry_type.reform(move |_| onclick_htype);
 
         html! {
             <li>
@@ -135,7 +124,7 @@ impl Component for ResultEntry {
                             { b.format_type_name(props.htype) }
                         </span>
                     </div>
-                    { self.view_expanded_entry(ctx, &mut b) }
+                    { self.view_expanded_entry(&mut b) }
                 </div>
             </li>
         }
@@ -158,13 +147,13 @@ impl ResultEntry {
 
         let props = ctx.props();
         let hpath = props.hpath;
-        let state = props.state.clone();
+        let services = self.state.services.clone();
         ctx.link().send_future_batch(async move {
-            let file = state.borrow().entrydb.get_entry_file(hpath).unwrap().to_string();
-            let result = get_binload_service!(state).fetch_entry(&file, hpath).await;
+            let file = services.entrydb.get_entry_file(hpath).unwrap().to_string();
+            let result = services.binload_service.fetch_entry(&file, hpath).await;
             match result {
-                Ok(entry) => vec![Msg::SetEntry(entry)],
-                Err(e) => { error!("failed to load bin entry: {}", e); vec![] }
+                Ok(entry) => Some(Msg::SetEntry(entry)),
+                Err(e) => { error!(format!("failed to load bin entry: {}", e)); None }
             }
         });
     }
@@ -178,12 +167,12 @@ impl ResultEntry {
             .map(|e| e.scroll_into_view());
     }
 
-    fn view_expanded_entry(&self, ctx: &Context<Self>, b: &mut BinViewBuilder) -> Html {
+    fn view_expanded_entry(&self, b: &mut BinViewBuilder) -> Html {
         match self.entry.as_ref() {
             Some(entry) =>
                 html! {
                     <ul>
-                        { for entry.fields.iter().map(|v| view_binfield(ctx, b, v)) }
+                        { for entry.fields.iter().map(|v| view_binfield(&self.state, b, v)) }
                     </ul>
                 },
             None => html! {},
@@ -193,17 +182,17 @@ impl ResultEntry {
 
 
 mod binview {
-    use yew::{classes, html, Callback, Context, Html};
+    use yew::prelude::*;
     use yew::events::MouseEvent;
     use web_sys::Element;
     use wasm_bindgen::JsCast;
     use cdragon_prop::*;
-    use super::{ResultEntry, Msg, ModelMsg};
+    use super::AppState;
     use crate::settings;
 
     /// Toggle a header's `collapsed` class, to be used in callbacks
     fn header_toggle_collapse(e: MouseEvent) {
-        let this: Option<Element> = e.current_target().and_then(|e| e.dyn_into::<Element>().ok());
+        let this: Option<Element> = e.target().and_then(|e| e.dyn_into::<Element>().ok());
         this.map(|e| {
             let classes = e.class_list();
             if classes.contains("collapsed") {
@@ -264,10 +253,10 @@ mod binview {
     trait BinViewable {
         const NESTED: bool = false;
 
-        fn view_value(&self, _ctx: &Context<ResultEntry>, b: &mut BinViewBuilder) -> Html;
+        fn view_value(&self, _state: &AppState, b: &mut BinViewBuilder) -> Html;
 
-        fn view_field_value(&self, ctx: &Context<ResultEntry>, b: &mut BinViewBuilder) -> Html {
-            self.view_value(ctx, b)
+        fn view_field_value(&self, state: &AppState, b: &mut BinViewBuilder) -> Html {
+            self.view_value(state, b)
         }
 
         fn view_type(&self, b: &BinViewBuilder) -> Html;
@@ -303,10 +292,10 @@ mod binview {
     }
 
 
-    pub fn view_binfield(ctx: &Context<ResultEntry>, b: &mut BinViewBuilder, field: &BinField) -> Html {
+    pub fn view_binfield(state: &AppState, b: &mut BinViewBuilder, field: &BinField) -> Html {
         let (v_nested, v_type, v_value) = binvalue_map_type!(field.vtype, T, {
             let v = field.downcast::<T>().unwrap();
-            (T::NESTED, v.view_type(b), v.view_field_value(ctx, b))
+            (T::NESTED, v.view_type(b), v.view_field_value(state, b))
         });
 
         let fname = html! { <span class="bin-field-name">{ b.format_field_name(field.name) }</span> };
@@ -336,10 +325,10 @@ mod binview {
     }
 
     macro_rules! impl_viewable {
-        ($t:ty, $btype:expr, ($self:ident, $ctx:ident, $b:ident) => $e:expr) => {
+        ($t:ty, $btype:expr, ($self:ident, $state:ident, $b:ident) => $e:expr) => {
             impl BinViewable for $t {
-                fn view_value(&self, ctx: &Context<ResultEntry>, b: &mut BinViewBuilder) -> Html {
-                    let ($self, $ctx, $b) = (self, ctx, b);
+                fn view_value(&self, state: &AppState, b: &mut BinViewBuilder) -> Html {
+                    let ($self, $state, $b) = (self, state, b);
                     $e.into()
                 }
 
@@ -395,9 +384,9 @@ mod binview {
     impl BinViewable for BinList {
         const NESTED: bool = true;
 
-        fn view_value(&self, ctx: &Context<ResultEntry>, b: &mut BinViewBuilder) -> Html {
+        fn view_value(&self, state: &AppState, b: &mut BinViewBuilder) -> Html {
             let v_values = binvalue_map_type!(
-                self.vtype, T, view_vec_values(ctx, b, self.downcast::<T>().unwrap()));
+                self.vtype, T, view_vec_values(state, b, self.downcast::<T>().unwrap()));
             html! { <div class="bin-option">{ v_values }</div> }
         }
 
@@ -409,7 +398,7 @@ mod binview {
     impl BinViewable for BinStruct {
         const NESTED: bool = true;
 
-        fn view_value(&self, ctx: &Context<ResultEntry>, b: &mut BinViewBuilder) -> Html {
+        fn view_value(&self, state: &AppState, b: &mut BinViewBuilder) -> Html {
             html! {
                 <div class="bin-struct">
                     <div class={classes!("bin-struct-header", "bin-item-header")}
@@ -419,17 +408,17 @@ mod binview {
                         </span>
                     </div>
                     <ul>
-                        { for self.fields.iter().map(|v| view_binfield(ctx, b, v)) }
+                        { for self.fields.iter().map(|v| view_binfield(state, b, v)) }
                     </ul>
                 </div>
             }
         }
 
-        fn view_field_value(&self, ctx: &Context<ResultEntry>, b: &mut BinViewBuilder) -> Html {
+        fn view_field_value(&self, state: &AppState, b: &mut BinViewBuilder) -> Html {
             html! {
                 <div class="bin-struct">
                     <ul>
-                        { for self.fields.iter().map(|v| view_binfield(ctx, b, v)) }
+                        { for self.fields.iter().map(|v| view_binfield(state, b, v)) }
                     </ul>
                 </div>
             }
@@ -443,7 +432,7 @@ mod binview {
     impl BinViewable for BinEmbed {
         const NESTED: bool = true;
 
-        fn view_value(&self, ctx: &Context<ResultEntry>, b: &mut BinViewBuilder) -> Html {
+        fn view_value(&self, state: &AppState, b: &mut BinViewBuilder) -> Html {
             html! {
                 <div class="bin-struct">
                     <div class={classes!("bin-struct-header", "bin-item-header")}
@@ -453,17 +442,17 @@ mod binview {
                         </span>
                     </div>
                     <ul>
-                        { for self.fields.iter().map(|v| view_binfield(ctx, b, v)) }
+                        { for self.fields.iter().map(|v| view_binfield(state, b, v)) }
                     </ul>
                 </div>
             }
         }
 
-        fn view_field_value(&self, ctx: &Context<ResultEntry>, b: &mut BinViewBuilder) -> Html {
+        fn view_field_value(&self, state: &AppState, b: &mut BinViewBuilder) -> Html {
             html! {
                 <div class="bin-struct">
                     <ul>
-                        { for self.fields.iter().map(|v| view_binfield(ctx, b, v)) }
+                        { for self.fields.iter().map(|v| view_binfield(state, b, v)) }
                     </ul>
                 </div>
             }
@@ -474,9 +463,9 @@ mod binview {
         }
     }
 
-    impl_viewable!(BinLink, BinType::Link, (this, ctx, b) => {
+    impl_viewable!(BinLink, BinType::Link, (this, state, b) => {
         let path = this.0;
-        let onclick = ctx.link().callback(move |_| Msg::Forward(ModelMsg::GoToEntry(path)));
+        let onclick = state.goto_entry.reform(move |_| path);
         html! {
             <span class="bin-link-value" {onclick}>{ b.format_entry_path(path) }</span>
         }
@@ -485,12 +474,12 @@ mod binview {
     impl BinViewable for BinOption {
         const NESTED: bool = true;
 
-        fn view_value(&self, ctx: &Context<ResultEntry>, b: &mut BinViewBuilder) -> Html {
+        fn view_value(&self, state: &AppState, b: &mut BinViewBuilder) -> Html {
             match self.value {
                 None => "-".into(),
                 Some(_) => {
                     let v_value = binvalue_map_type!(
-                        self.vtype, T, self.downcast::<T>().unwrap().view_value(ctx, b));
+                        self.vtype, T, self.downcast::<T>().unwrap().view_value(state, b));
                     html! { <div class="bin-option">{ v_value }</div> }
                 }
             }
@@ -504,10 +493,10 @@ mod binview {
     impl BinViewable for BinMap {
         const NESTED: bool = true;
 
-        fn view_value(&self, ctx: &Context<ResultEntry>, b: &mut BinViewBuilder) -> Html {
+        fn view_value(&self, state: &AppState, b: &mut BinViewBuilder) -> Html {
             let v_values = binvalue_map_keytype!(
                 self.ktype, K, binvalue_map_type!(
-                    self.vtype, V, view_binvalue_map(ctx, b, self.downcast::<K, V>().unwrap())
+                    self.vtype, V, view_binvalue_map(state, b, self.downcast::<K, V>().unwrap())
                     ));
             html! { <div class="bin-map">{ v_values }</div> }
         }
@@ -517,23 +506,23 @@ mod binview {
         }
     }
 
-    fn view_vec_values<T: BinViewable>(ctx: &Context<ResultEntry>, b: &mut BinViewBuilder, values: &[T]) -> Html {
+    fn view_vec_values<T: BinViewable>(state: &AppState, b: &mut BinViewBuilder, values: &[T]) -> Html {
         html! {
             <ul>
-                { for values.iter().map(|v| html! { <li>{ v.view_value(ctx, b) }</li> }) }
+                { for values.iter().map(|v| html! { <li>{ v.view_value(state, b) }</li> }) }
             </ul>
         }
     }
 
-    fn view_binvalue_map<K: BinViewable, V: BinViewable>(ctx: &Context<ResultEntry>, b: &mut BinViewBuilder, values: &Vec<(K, V)>) -> Html {
+    fn view_binvalue_map<K: BinViewable, V: BinViewable>(state: &AppState, b: &mut BinViewBuilder, values: &Vec<(K, V)>) -> Html {
         html! {
             <ul>
                 { for values.iter().map(|(k, v)| html! {
                     <li>
                         <span class="bin-map-item">
-                            { k.view_value(ctx, b) }
+                            { k.view_value(state, b) }
                             { " => " }
-                            { v.view_value(ctx, b) }
+                            { v.view_value(state, b) }
                         </span>
                     </li>
                 }) }

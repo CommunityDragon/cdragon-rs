@@ -7,12 +7,21 @@ use nom::{
     sequence::{pair, tuple},
     multi::count,
 };
-use super::{PropFile, BinEntry, BinEntryHeader};
-use super::data::*;
-use super::{binvalue_map_type, binvalue_map_keytype};
-use cdragon_utils::Result;
-use cdragon_utils::parsing::{ParseError, into_err, IResult};
-use cdragon_utils::hashes::HashDef;
+use super::{
+    PropFile,
+    BinEntry,
+    BinEntryHeader,
+    data::*,
+    binvalue_map_keytype,
+    binvalue_map_type,
+};
+use cdragon_utils::{
+    hashes::HashDef,
+    parsing::{ParseError, IResult, ReadArray},
+    parse_buf,
+};
+
+type Result<T> = std::result::Result<T, ParseError>;
 
 
 /// Trait satisfied by values that can be parsed from binary data
@@ -20,7 +29,7 @@ pub(super) trait BinParsable where Self: Sized {
     fn binparse(i: &[u8]) -> IResult<&[u8], Self>;
 }
 
-pub(super) fn binparse<T: BinParsable>(i: &[u8]) -> Result<T, ParseError> {
+pub(super) fn binparse<T: BinParsable>(i: &[u8]) -> Result<T> {
     match T::binparse(i) {
         Ok((i, v)) => {
             if !i.is_empty() {
@@ -117,11 +126,10 @@ impl<R: Read> BinEntryScanner<R> {
         let (is_patch, version): (bool, u32) = {
             let mut buf = [0u8; 4 + 4 + 4];  // maximum size needed
             reader.read_exact(&mut buf[..8])?;
-            let (_, opt_ptch) = opt(tag("PTCH"))(&buf[..4]).map_err(into_err)?;
-            let is_patch = match opt_ptch {
+            let is_patch = match parse_buf!(buf[..4], opt(tag("PTCH"))) {
                 Some(_) => {
                     reader.read_exact(&mut buf[8..12])?;
-                    let (_, header) = tuple((le_u32, le_u32))(&buf[4..12]).map_err(into_err)?;
+                    let header = parse_buf!(buf[4..12], tuple((le_u32, le_u32)));
                     assert_eq!(header, (1, 0));
                     reader.read_exact(&mut buf[..8])?;
                     true
@@ -129,31 +137,28 @@ impl<R: Read> BinEntryScanner<R> {
                 None => false
             };
 
-            let (_, (_, version)) = tuple((tag("PROP"), le_u32))(&buf[..8]).map_err(into_err)?;
+            let (_, version) = parse_buf!(buf[..8], tuple((tag("PROP"), le_u32)));
             (is_patch, version)
         };
 
         if version >= 2 {
             // Skip linked files
-            let mut buf = [0u8; 4];
-            reader.read_exact(&mut buf)?;
-            let (_, n) = le_u32(&buf[..]).map_err(into_err)?;
+            let buf = reader.read_array::<4>()?;
+            let n = parse_buf!(buf, le_u32);
             for _ in 0..n {
-                let mut buf = [0u8; 2];
-                reader.read_exact(&mut buf)?;
-                let (_, n) = le_u16(&buf[..]).map_err(into_err)?;
+                let buf = reader.read_array::<2>()?;
+                let n = parse_buf!(buf, le_u16);
                 std::io::copy(&mut reader.by_ref().take(n as u64), &mut std::io::sink())?;
             }
         };
 
         // Parse entry types
         let entry_types: Vec<BinClassName> = {
-            let mut buf = [0u8; 4];
-            reader.read_exact(&mut buf)?;
-            let (_, n) = le_u32(&buf[..]).map_err(into_err)?;
+            let buf = reader.read_array::<4>()?;
+            let n = parse_buf!(buf, le_u32);
             let mut buf = Vec::<u8>::new();
             reader.by_ref().take(4 * n as u64).read_to_end(&mut buf)?;
-            let (_, entry_types) = count(BinClassName::binparse, n as usize)(&buf).map_err(into_err)?;
+            let entry_types = parse_buf!(buf, count(BinClassName::binparse, n as usize));
             entry_types
         };
 
@@ -194,9 +199,8 @@ trait BinEntryScan {
 
     /// Read the next entry header, return the remaining length and the path
     fn next_scan(reader: &mut Self::Reader) -> Result<(u32, BinEntryPath)> {
-        let mut buf = [0u8; 4 + 4];
-        reader.read_exact(&mut buf)?;
-        let (_, (length, path)) = tuple((le_u32, BinEntryPath::binparse))(&buf[..]).map_err(into_err)?;
+        let buf = reader.read_array::<{4 + 4}>()?;
+        let (length, path) = parse_buf!(buf, tuple((le_u32, BinEntryPath::binparse)));
         Ok((length - 4, path))  // path has been read, deduct it from length
     }
 
@@ -204,7 +208,7 @@ trait BinEntryScan {
     fn read_fields(reader: &mut Self::Reader, length: u32) -> Result<Vec<BinField>> {
         let mut buf = Vec::<u8>::new();
         reader.by_ref().take(length as u64).read_to_end(&mut buf)?;
-        let (_, fields) = length_count(le_u16, BinField::binparse)(&buf).map_err(into_err)?;
+        let fields = parse_buf!(buf, length_count(le_u16, BinField::binparse));
         Ok(fields)
     }
 

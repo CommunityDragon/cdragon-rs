@@ -1,6 +1,9 @@
 use std::any::Any;
 use num_enum::TryFromPrimitive;
-use super::{BinHashMappers, compute_binhash};
+use super::{
+    BinHashMappers,
+    compute_binhash,
+};
 use cdragon_utils::declare_hash_type;
 
 

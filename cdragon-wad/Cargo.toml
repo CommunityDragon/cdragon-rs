@@ -7,11 +7,9 @@ edition = "2021"
 [dependencies]
 cdragon-utils = { path = "../cdragon-utils" }
 nom = "7"
-num_enum = "0.6"
-twox-hash = "1.6"
-zstd = "0.12"
 serde_json = "1"
-
-[features]
-wasm = ["zstd/wasm"]
+thiserror = "1"
+twox-hash = "1.6"
+# Default features are not needed and break wasm build
+zstd = { version = "0.12", default-features = false }
 

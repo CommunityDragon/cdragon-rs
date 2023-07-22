@@ -1,5 +1,6 @@
 use clap::{Command, ArgMatches};
-use cdragon_utils::Result;
+
+type Result<T, E = Box<dyn std::error::Error>> = std::result::Result<T, E>;
 
 
 /// Wrap clap commands to group declaration, argument matching and handling

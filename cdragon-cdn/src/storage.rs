@@ -19,11 +19,13 @@ use std::io;
 use std::io::{BufReader, Read, Seek};
 use std::path::{Path, PathBuf};
 use cdragon_rman::{Rman, FileBundleRanges, FileEntry};
-use cdragon_utils::StringError;
 use cdragon_utils::fstools::symlink_file;
-use super::CdnDownloader;
-use super::Result;
-use super::guarded_map::GuardedMmap;
+use super::{
+    CdnDownloader,
+    CdnError,
+    Result,
+    guarded_map::GuardedMmap,
+};
 
 
 /// Configuration of the storage
@@ -62,7 +64,7 @@ impl CdnStorage {
     ///
     /// URL basename must match manifest paths format used on CDN
     pub fn download_manifest_url(&self, url: &str) -> Result<PathBuf> {
-        let id = parse_manifest_id(url)?;
+        let id = parse_manifest_id(url).ok_or(CdnError::InvalidManifestUrl)?;
         let path = CdnDownloader::manifest_path(id);
         let fspath = self.conf.path.join(path);
         if !fspath.exists() {
@@ -74,7 +76,7 @@ impl CdnStorage {
     /// Download and extract manifest from its ID
     pub fn download_and_extract_manifest(&self, id: u64, output: &Path) -> Result<()> {
         let path = self.download_manifest(id)?;
-        let rman = Rman::open(&path)?;
+        let rman = Rman::open(path)?;
         self.download_manifest_bundles(&rman)?;
         //TODO extract to a temporary directory and rename it on success
         self.extract_manifest_files(&rman, output)?;
@@ -166,14 +168,13 @@ impl CdnStorage {
 }
 
 
-/// Get manifest ID from a path or URL
-fn parse_manifest_id(url: &str) -> Result<u64> {
-    let basename = url.rsplit('/').next().ok_or(StringError("cannot find basename of manifest in URL path".into()))?;
+/// Get manifest ID from a path or URL, None if not valid
+fn parse_manifest_id(url: &str) -> Option<u64> {
+    let basename = url.rsplit('/').next()?;
     if basename.len() != "0123456789ABCDEF.manifest".len() || !basename.ends_with(".manifest") {
-        Err(StringError(format!("invalid manifest basename: {}", basename)).into())
+        None
     } else {
-        let id = u64::from_str_radix(&basename[..16], 16)?;
-        Ok(id)
+        u64::from_str_radix(&basename[..16], 16).ok()
     }
 }
 
