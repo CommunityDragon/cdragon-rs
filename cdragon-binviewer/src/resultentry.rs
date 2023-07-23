@@ -337,8 +337,8 @@ mod binview {
                 }
             }
         };
-        ($t:ty, $b:expr) => { impl_viewable!($t, $b, (this, _ctx, _b) => this.0); };
-        ($t:ty, $b:expr, $self:ident => $e:expr) => { impl_viewable!($t, $b, ($self, _ctx, _b) => $e); };
+        ($t:ty, $b:expr) => { impl_viewable!($t, $b, (this, _state, _b) => this.0); };
+        ($t:ty, $b:expr, $self:ident => $e:expr) => { impl_viewable!($t, $b, ($self, _state, _b) => $e); };
     }
 
     impl_viewable!(BinNone, BinType::None, _this => &"-");
@@ -361,8 +361,14 @@ mod binview {
         this.0[1][0], this.0[1][1], this.0[1][2], this.0[1][3],
         this.0[2][0], this.0[2][1], this.0[2][2], this.0[2][3],
         this.0[3][0], this.0[3][1], this.0[3][2], this.0[3][3]));
-    impl_viewable!(BinColor, BinType::Color, this => format!("({}, {}, {}, {})", this.r, this.g, this.b, this.a));
-    impl_viewable!(BinString, BinType::String, (this, _ctx, _b) => {
+    impl_viewable!(BinColor, BinType::Color, this => {
+        let s = format!("({}, {}, {}, {})", this.r, this.g, this.b, this.a);
+        let style = format!("background-color: rgb({}, {}, {})", this.r, this.g, this.b);
+        html! {
+            <span><span class="bin-color-value-preview" {style}></span>{ s }</span>
+        }
+    });
+    impl_viewable!(BinString, BinType::String, this => {
         let this = &this.0;
         if this.ends_with(".dds") || this.ends_with(".DDS") {
             let path = this[..this.len()-4].to_lowercase();
@@ -374,10 +380,10 @@ mod binview {
             this.into()
         }
     });
-    impl_viewable!(BinHash, BinType::Hash, (this, _ctx, b) => html! {
+    impl_viewable!(BinHash, BinType::Hash, (this, _state, b) => html! {
         <span class="bin-hash-value">{ b.format_hash_value(this.0) }</span>
     });
-    impl_viewable!(BinPath, BinType::Hash, (this, _ctx, b) => html! {
+    impl_viewable!(BinPath, BinType::Hash, (this, _state, b) => html! {
         <span class="bin-path-value">{ b.format_path_value(this.0) }</span>
     });
 

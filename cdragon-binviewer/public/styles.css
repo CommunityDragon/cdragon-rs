@@ -101,6 +101,14 @@ a:hover {
 .bin-link-value:hover { color: #c00000; }
 .bin-hash-value { }
 .bin-path-value { }
+.bin-color-value-preview {
+  margin-right: 1em;
+  height: 1em;
+  width: 1em;
+  vertical-align: middle;
+  display: inline-block;
+  border: 1px solid #444;
+}
 
 .bin-entry-path, 
 .bin-entry-type,
