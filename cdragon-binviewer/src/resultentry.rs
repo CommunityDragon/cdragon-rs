@@ -370,7 +370,7 @@ mod binview {
     });
     impl_viewable!(BinString, BinType::String, this => {
         let this = &this.0;
-        if this.ends_with(".dds") || this.ends_with(".DDS") {
+        if this.ends_with(".dds") || this.ends_with(".DDS") || this.ends_with(".tex") {
             let path = this[..this.len()-4].to_lowercase();
             let url = format!("{}/{}.png", settings::ASSETS_BASE_URL, path);
             html! {
