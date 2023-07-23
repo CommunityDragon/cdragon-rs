@@ -126,6 +126,7 @@ impl<'a, W: Write> JsonSerializer<'a, W> {
     fn write_key_u32(&mut self, v: &BinU32) -> io::Result<()> { write!(self.writer, "\"{}\"", v.0) }
     fn write_key_s64(&mut self, v: &BinS64) -> io::Result<()> { write!(self.writer, "\"{}\"", v.0) }
     fn write_key_u64(&mut self, v: &BinU64) -> io::Result<()> { write!(self.writer, "\"{}\"", v.0) }
+    fn write_key_float(&mut self, v: &BinFloat) -> io::Result<()> { write!(self.writer, "\"{}\"", v.0) }
 }
 
 impl<'a, W: Write> BinSerializer for JsonSerializer<'a, W> {
@@ -253,6 +254,7 @@ impl_bin_key_serializable!(BinS32, write_key_s32);
 impl_bin_key_serializable!(BinU32, write_key_u32);
 impl_bin_key_serializable!(BinS64, write_key_s64);
 impl_bin_key_serializable!(BinU64, write_key_u64);
+impl_bin_key_serializable!(BinFloat, write_key_float);
 impl_bin_key_serializable!(BinString, write_string);
 impl_bin_key_serializable!(BinHash, write_hash);
 impl_bin_key_serializable!(BinPath, write_path);
