@@ -199,6 +199,8 @@ pub const NON_PROP_BASENAMES: &[&str]  = &[
     "atlas_info.bin",
     "tftoutofgamecharacterdata.bin",
     "tftmapcharacterlists.bin",
+    "tftactivesets.bin",
+    "tftitemlist.bin",
 ];
 
 
