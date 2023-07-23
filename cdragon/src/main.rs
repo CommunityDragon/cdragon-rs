@@ -280,7 +280,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 finder.on_found = |h, s| println!("{:08x} {}", h, s);
 
                 let mut guesser = BinHashGuesser::new(path, finder);
-                guesser.guess_all()?;
+                guesser.guess_all();
 
                 //TODO don't write if nothing has been found?
                 hmappers.write_dirpath(hdir)?;

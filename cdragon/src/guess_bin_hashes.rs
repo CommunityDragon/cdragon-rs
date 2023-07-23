@@ -87,18 +87,23 @@ impl<'a> BinHashGuesser<'a> {
     }
 
     /// Guess everything possible
-    pub fn guess_all(&mut self) -> Result<(), PropError> {
-        self.guess_common_entry_types_paths()?;
-        self.guess_from_characters()?;
-        self.guess_from_items()?;
-        self.guess_from_companions()?;
-        self.guess_from_summoner_emotes()?;
-        self.guess_from_summoner_trophies()?;
-        self.guess_from_tft_map_skins()?;
-        self.guess_from_shaders_shareddata()?;
-        self.guess_from_fonts()?;
-        self.guess_from_tooltips()?;
-        Ok(())
+    pub fn guess_all(&mut self) {
+        macro_rules! guess {
+            ($f:ident) => {
+                self.$f().unwrap_or_else(|e| eprintln!("{} failed: {}", stringify!($f), e));
+            }
+        }
+
+        guess!(guess_common_entry_types_paths);
+        guess!(guess_from_characters);
+        guess!(guess_from_items);
+        guess!(guess_from_companions);
+        guess!(guess_from_summoner_emotes);
+        guess!(guess_from_summoner_trophies);
+        guess!(guess_from_tft_map_skins);
+        guess!(guess_from_shaders_shareddata);
+        guess!(guess_from_fonts);
+        guess!(guess_from_tooltips);
     }
 
     /// Guess hashes from all characters
