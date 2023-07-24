@@ -24,6 +24,16 @@ macro_rules! write_sequence {
     }}
 }
 
+// Same as write_sequence, but always start with a comma
+macro_rules! write_sequence_after {
+    ($self:expr, $pat:pat in $seq:expr => $expr:expr) => {{
+        for $pat in $seq.iter() {
+            $self.write_raw(b",")?;
+            $expr
+        }
+    }}
+}
+
 
 /// Serialize bin values to JSON
 pub struct JsonSerializer<'a, W: Write> {
@@ -48,6 +58,13 @@ impl<'a, W: Write> JsonSerializer<'a, W> {
     }
 
     fn write_field_name(&mut self, h: BinFieldName) -> io::Result<()> {
+        match h.get_str(self.hmappers) {
+            Some(s) => write!(self.writer, "\"{}\"", s),
+            _ => write!(self.writer, "\"{{{:x}}}\"", h),
+        }
+    }
+
+    fn write_type_name(&mut self, h: BinClassName) -> io::Result<()> {
         match h.get_str(self.hmappers) {
             Some(s) => write!(self.writer, "\"{}\"", s),
             _ => write!(self.writer, "\"{{{:x}}}\"", h),
@@ -104,9 +121,10 @@ impl<'a, W: Write> JsonSerializer<'a, W> {
         Ok(())
     }
 
-    fn write_fields(&mut self, fields: &[BinField]) -> io::Result<()> {
-        self.write_raw(b"{")?;
-        write_sequence!(self, field in fields => {
+    fn write_fields(&mut self, ctype: BinClassName, fields: &[BinField]) -> io::Result<()> {
+        self.write_raw(b"{\"__type\":")?;
+        self.write_type_name(ctype)?;
+        write_sequence_after!(self, field in fields => {
             self.write_field_name(field.name)?;
             self.write_raw(b":")?;
             binvalue_map_type!(field.vtype, T, {
@@ -133,7 +151,7 @@ impl<'a, W: Write> BinSerializer for JsonSerializer<'a, W> {
     type EntriesSerializer = JsonEntriesSerializer<'a, W>;
 
     fn write_entry(&mut self, v: &BinEntry) -> io::Result<()> {
-        self.write_fields(&v.fields)
+        self.write_fields(v.ctype, &v.fields)
     }
 
     fn write_entries(self) -> io::Result<Self::EntriesSerializer> {
@@ -195,11 +213,11 @@ impl<'a, W: Write> BinSerializer for JsonSerializer<'a, W> {
     }
 
     fn write_struct(&mut self, v: &BinStruct) -> io::Result<()> {
-        self.write_fields(&v.fields)
+        self.write_fields(v.ctype, &v.fields)
     }
 
     fn write_embed(&mut self, v: &BinEmbed) -> io::Result<()> {
-        self.write_fields(&v.fields)
+        self.write_fields(v.ctype, &v.fields)
     }
 
     fn write_option(&mut self, option: &BinOption) -> io::Result<()> {
