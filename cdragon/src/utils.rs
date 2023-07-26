@@ -1,7 +1,9 @@
 //! Various tools
 
 use std::hash::Hash;
+use std::path::{Path, PathBuf};
 use num_traits::Num;
+use walkdir::{WalkDir, DirEntry};
 use cdragon_utils::hashes::HashMapper;
 
 
@@ -81,6 +83,52 @@ impl<'a, T: Num + Eq + Hash> HashValuePattern<'a, T> {
             }
         }
     }
+}
+
+
+/// Canonicalize a path, avoid errors on long file names
+///
+/// `canonicalize()` is needed to open long files on Windows, but it still fails if the path is too
+/// long. `canonicalize()` the directory name then manually join the file name.
+pub fn canonicalize_path(path: &Path) -> std::io::Result<PathBuf> {
+    if cfg!(target_os = "windows") {
+        if let Some(mut parent) = path.parent() {
+            if let Some(base) = path.file_name() {
+                if parent.as_os_str() == "" {
+                    parent = Path::new(".");
+                }
+                return Ok(parent.canonicalize()?.join(base))
+            }
+        }
+    }
+    Ok(path.to_path_buf())
+}
+
+
+fn is_binfile_direntry(entry: &DirEntry) -> bool {
+    let ftype = entry.file_type();
+    if ftype.is_file() {
+        if entry.path().extension().map(|s| s == "bin").unwrap_or(false) {
+            // Some files are not actual 'PROP' files
+            entry.file_name().to_str()
+                .map(|s| !cdragon_prop::NON_PROP_BASENAMES.contains(&s))
+                .unwrap_or(false)
+        } else {
+            false
+        }
+    } else {
+        ftype.is_dir()
+    }
+}
+
+/// Iterate on bin files from a directory
+pub fn bin_files_from_dir<P: AsRef<Path>>(root: P) -> impl Iterator<Item=PathBuf> {
+    WalkDir::new(&root)
+        .into_iter()
+        .filter_entry(is_binfile_direntry)
+        .filter_map(Result::ok)
+        .filter(|e| e.file_type().is_file())
+        .filter_map(|e| canonicalize_path(&e.into_path()).ok())
 }
 
 

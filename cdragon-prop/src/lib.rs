@@ -5,7 +5,7 @@ mod parser;
 mod serializer;
 mod text_tree;
 mod json;
-mod gather_hashes;
+pub mod visitor;
 pub mod data;
 
 use std::io;
@@ -107,6 +107,8 @@ impl BinHashMappers {
     }
 }
 
+pub type BinHashSets = BinHashKindMapping<HashSet<u32>, HashSet<u64>>;
+
 
 /// PROP file, with entries
 pub struct PropFile {
@@ -152,14 +154,7 @@ pub struct BinEntry {
     pub fields: Vec<BinField>,
 }
 
-pub type BinHashSets = BinHashKindMapping<HashSet<u32>, HashSet<u64>>;
-use gather_hashes::GatherHashes;
-
 impl BinEntry {
-    pub fn gather_bin_hashes(&self, hashes: &mut BinHashSets) {
-        self.gather_hashes(hashes);
-    }
-
     pub fn get(&self, name: BinFieldName) -> Option<&BinField> {
         self.fields.iter().find(|f| f.name == name)
     }

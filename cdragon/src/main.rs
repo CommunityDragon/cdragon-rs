@@ -3,14 +3,10 @@ use std::io;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use clap::{Arg, ArgAction, value_parser};
-use walkdir::{WalkDir, DirEntry};
 
 use cdragon_prop::{
-    NON_PROP_BASENAMES,
-    PropError,
     PropFile,
     BinHashMappers,
-    BinHashSets,
     BinHashKind,
     BinSerializer,
     BinEntriesSerializer,
@@ -36,8 +32,10 @@ mod utils;
 use utils::{
     PathPattern,
     HashValuePattern,
+    bin_files_from_dir,
 };
 
+mod bin_hashes;
 mod guess_bin_hashes;
 use guess_bin_hashes::{
     BinHashFinder,
@@ -48,51 +46,12 @@ type Result<T, E = Box<dyn std::error::Error>> = std::result::Result<T, E>;
 type BinEntryScanner = cdragon_prop::BinEntryScanner<io::BufReader<fs::File>>;
 
 
-fn is_binfile_direntry(entry: &DirEntry) -> bool {
-    let ftype = entry.file_type();
-    if ftype.is_file() {
-        if entry.path().extension().map(|s| s == "bin").unwrap_or(false) {
-            // Some files are not actual 'PROP' files
-            entry.file_name().to_str()
-                .map(|s| !NON_PROP_BASENAMES.contains(&s))
-                .unwrap_or(false)
-        } else {
-            false
-        }
-    } else {
-        ftype.is_dir()
-    }
-}
-
 
 /// Serialize a scanner to an entry serializer
 fn serialize_bin_scanner(scanner: BinEntryScanner, serializer: &mut dyn BinEntriesSerializer) -> Result<()> {
     scanner.parse().try_for_each(|entry| -> Result<(), _> {
         serializer.write_entry(&entry?).map_err(|e| e.into())
     })
-}
-
-
-/// Iterate on bin files from a directory
-fn bin_files_from_dir<P: AsRef<Path>>(root: P) -> impl Iterator<Item=PathBuf> {
-    WalkDir::new(&root)
-        .into_iter()
-        .filter_entry(is_binfile_direntry)
-        .filter_map(Result::ok)
-        .filter(|e| e.file_type().is_file())
-        .filter_map(|e| canonicalize_path(&e.into_path()).ok())
-}
-
-/// Collect hashes from a directory
-fn collect_bin_hashes_from_dir<P: AsRef<Path>>(root: P) -> Result<BinHashSets, PropError> {
-    let mut hashes = BinHashSets::default();
-    for path in bin_files_from_dir(root) {
-        let scanner = PropFile::scan_entries_from_path(path)?;
-        for entry in scanner.parse() {
-            entry?.gather_bin_hashes(&mut hashes);
-        }
-    }
-    Ok(hashes)
 }
 
 
@@ -107,24 +66,6 @@ fn wad_and_hmapper_from_paths(wad_path: &Path, hashes_dir: Option<&PathBuf>) -> 
         }
     }
     Ok((wad, hmapper))
-}
-
-/// Canonicalize a path, avoid errors on long file names
-///
-/// `canonicalize()` is needed to open long files on Windows, but it still fails if the path is too
-/// long. `canonicalize()` the directory name then manually join the file name.
-pub fn canonicalize_path(path: &Path) -> std::io::Result<PathBuf> {
-    if cfg!(target_os = "windows") {
-        if let Some(mut parent) = path.parent() {
-            if let Some(base) = path.file_name() {
-                if parent.as_os_str() == "" {
-                    parent = Path::new(".");
-                }
-                return Ok(parent.canonicalize()?.join(base))
-            }
-        }
-    }
-    Ok(path.to_path_buf())
 }
 
 
@@ -189,102 +130,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
 
                 serializer.end()?;
-                Ok(())
-            })
-            )
-        .add_nested(
-            NestedCommand::new("unknown-hashes")
-            .options(|app| {
-                app
-                    .about("Gather unknown hashes from BIN files")
-                    .arg(Arg::new("input")
-                         .value_name("bin")
-                         .required(true)
-                         .value_parser(value_parser!(PathBuf))
-                         .help("Directory with `.bin` files to scan"))
-                    .arg(Arg::new("hashes")
-                         .short('H')
-                         .value_name("dir")
-                         .required(true)
-                         .value_parser(value_parser!(PathBuf))
-                         .help("Directory with known hash lists"))
-                    .arg(Arg::new("output")
-                         .short('o')
-                         .value_name("dir")
-                         .default_value(".")
-                         .value_parser(value_parser!(PathBuf))
-                         .help("Output directory for unknown hashes files (default: `.`)"))
-            })
-            .runner(|subm| {
-                let path = subm.get_one::<PathBuf>("input").unwrap();
-                let hmappers = {
-                    let dir = subm.get_one::<PathBuf>("hashes").unwrap();
-                    BinHashMappers::from_dirpath(Path::new(dir))?
-                };
-
-                let hashes = collect_bin_hashes_from_dir(path)?;
-                let output = Path::new(subm.get_one::<PathBuf>("output").unwrap());
-                fs::create_dir_all(output)?;
-
-                // Then write the result, after excluding known hashes
-                for kind in BinHashKind::variants() {
-                    let path = output.join(match kind {
-                        BinHashKind::EntryPath => "unknown.binentries.txt",
-                        BinHashKind::ClassName => "unknown.bintypes.txt",
-                        BinHashKind::FieldName => "unknown.binfields.txt",
-                        BinHashKind::HashValue => "unknown.binhashes.txt",
-                    });
-                    let file = fs::File::create(path)?;
-                    let mut writer = io::BufWriter::new(file);
-                    let mapper = hmappers.get(kind);
-                    for hash in hashes.get(kind).iter() {
-                        if !mapper.is_known(*hash) {
-                            writeln!(writer, "{:08x}", hash)?;
-                        }
-                    }
-                }
-
-                Ok(())
-            })
-            )
-        .add_nested(
-            NestedCommand::new("guess-hashes")
-            .options(|app| {
-                app
-                    .about("Guess unknown hashes from BIN files")
-                    .arg(Arg::new("input")
-                         .value_name("bin")
-                         .required(true)
-                         .value_parser(value_parser!(PathBuf))
-                         .help("Directory with `.bin` files to scan"))
-                    .arg(Arg::new("hashes")
-                         .short('H')
-                         .value_name("dir")
-                         .required(true)
-                         .value_parser(value_parser!(PathBuf))
-                         .help("Directory with known hash lists"))
-            })
-            .runner(|subm| {
-                let path = subm.get_one::<PathBuf>("input").unwrap();
-                let hdir = Path::new(subm.get_one::<PathBuf>("hashes").unwrap());
-                let mut hmappers = BinHashMappers::from_dirpath(hdir)?;
-
-                // Collect unknown hashes
-                let mut hashes = collect_bin_hashes_from_dir(path)?;
-                for kind in BinHashKind::variants() {
-                    let mapper = hmappers.get(kind);
-                    hashes.get_mut(kind).retain(|&h| !mapper.is_known(h));
-                }
-
-                let mut finder = BinHashFinder::new(&mut hashes, &mut hmappers);
-                finder.on_found = |h, s| println!("{:08x} {}", h, s);
-
-                let mut guesser = BinHashGuesser::new(path, finder);
-                guesser.guess_all();
-
-                //TODO don't write if nothing has been found?
-                hmappers.write_dirpath(hdir)?;
-
                 Ok(())
             })
             )
@@ -506,6 +351,130 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     wad.extract_entry(&entry, &path)?;
                 }
 
+                Ok(())
+            })
+            )
+        )
+    .add_nested(
+        NestedCommand::new("hashes")
+        .options(|app| {
+            app
+                .about("Tools to collect and guess hashes from BIN files")
+                .arg_required_else_help(true)
+        })
+        .add_nested(
+            NestedCommand::new("get-unknown")
+            .options(|app| {
+                app
+                    .about("Collect unknown hashes from BIN files")
+                    .arg(Arg::new("input")
+                         .value_name("bin")
+                         .required(true)
+                         .value_parser(value_parser!(PathBuf))
+                         .help("Directory with `.bin` files to scan"))
+                    .arg(Arg::new("hashes")
+                         .short('H')
+                         .value_name("dir")
+                         .required(true)
+                         .value_parser(value_parser!(PathBuf))
+                         .help("Directory with known hash lists"))
+                    .arg(Arg::new("output")
+                         .short('o')
+                         .value_name("dir")
+                         .default_value(".")
+                         .value_parser(value_parser!(PathBuf))
+                         .help("Output directory for unknown hashes files (default: `.`)"))
+            })
+            .runner(|subm| {
+                let path = subm.get_one::<PathBuf>("input").unwrap();
+                let hmappers = {
+                    let dir = subm.get_one::<PathBuf>("hashes").unwrap();
+                    BinHashMappers::from_dirpath(Path::new(dir))?
+                };
+
+                let hashes = bin_hashes::collect_unknown_from_dir(path)?;
+                let output = Path::new(subm.get_one::<PathBuf>("output").unwrap());
+                fs::create_dir_all(output)?;
+
+                // Then write the result, after excluding known hashes
+                for kind in BinHashKind::variants() {
+                    let path = output.join(match kind {
+                        BinHashKind::EntryPath => "unknown.binentries.txt",
+                        BinHashKind::ClassName => "unknown.bintypes.txt",
+                        BinHashKind::FieldName => "unknown.binfields.txt",
+                        BinHashKind::HashValue => "unknown.binhashes.txt",
+                    });
+                    let file = fs::File::create(path)?;
+                    let mut writer = io::BufWriter::new(file);
+                    let mapper = hmappers.get(kind);
+                    for hash in hashes.get(kind).iter() {
+                        if !mapper.is_known(*hash) {
+                            writeln!(writer, "{:08x}", hash)?;
+                        }
+                    }
+                }
+
+                Ok(())
+            })
+            )
+        .add_nested(
+            NestedCommand::new("guess-hashes")
+            .options(|app| {
+                app
+                    .about("Guess unknown hashes from BIN files")
+                    .arg(Arg::new("input")
+                         .value_name("bin")
+                         .required(true)
+                         .value_parser(value_parser!(PathBuf))
+                         .help("Directory with `.bin` files to scan"))
+                    .arg(Arg::new("hashes")
+                         .short('H')
+                         .value_name("dir")
+                         .required(true)
+                         .value_parser(value_parser!(PathBuf))
+                         .help("Directory with known hash lists"))
+            })
+            .runner(|subm| {
+                let path = subm.get_one::<PathBuf>("input").unwrap();
+                let hdir = Path::new(subm.get_one::<PathBuf>("hashes").unwrap());
+                let mut hmappers = BinHashMappers::from_dirpath(hdir)?;
+
+                // Collect unknown hashes
+                let mut hashes = bin_hashes::collect_unknown_from_dir(path)?;
+                for kind in BinHashKind::variants() {
+                    let mapper = hmappers.get(kind);
+                    hashes.get_mut(kind).retain(|&h| !mapper.is_known(h));
+                }
+
+                let mut finder = BinHashFinder::new(&mut hashes, &mut hmappers);
+                finder.on_found = |h, s| println!("{:08x} {}", h, s);
+
+                let mut guesser = BinHashGuesser::new(path, finder);
+                guesser.guess_all();
+
+                //TODO don't write if nothing has been found?
+                hmappers.write_dirpath(hdir)?;
+
+                Ok(())
+            })
+            )
+        .add_nested(
+            NestedCommand::new("get-strings")
+            .options(|app| {
+                app
+                    .about("Collect strings BIN files")
+                    .arg(Arg::new("input")
+                         .value_name("bin")
+                         .required(true)
+                         .value_parser(value_parser!(PathBuf))
+                         .help("Directory with `.bin` files to scan"))
+            })
+            .runner(|subm| {
+                let path = subm.get_one::<PathBuf>("input").unwrap();
+                let strings = bin_hashes::collect_strings_from_dir(path)?;
+                for s in strings {
+                    println!("{}", s);
+                }
                 Ok(())
             })
             )
