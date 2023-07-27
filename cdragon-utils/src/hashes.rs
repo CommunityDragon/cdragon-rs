@@ -136,6 +136,31 @@ pub trait HashDef: Sized {
     fn is_null(&self) -> bool;
 }
 
+/// Wrapper for a hash or its associated string
+///
+/// Intended to be used for display.
+pub enum HashOrStr<H, S>
+where H: Num + Eq + Hash, S: AsRef<str> {
+    Hash(H),
+    Str(S),
+
+}
+
+impl<H, S> HashOrStr<H, S>
+where H: Num + Eq + Hash + fmt::LowerHex, S: AsRef<str> {
+    const HASH_LEN: usize = std::mem::size_of::<H>() * 2;
+}
+
+impl<H, S> fmt::Display for HashOrStr<H, S>
+where H: Num + Eq + Hash + fmt::LowerHex, S: AsRef<str> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Hash(h) => write!(f, "{{{:0w$x}}}", h, w = Self::HASH_LEN),
+            Self::Str(s) => write!(f, "{}", s.as_ref()),
+        }
+    }
+}
+
 
 /// Declare a hash value type, wrapped into a unique type
 #[macro_export]

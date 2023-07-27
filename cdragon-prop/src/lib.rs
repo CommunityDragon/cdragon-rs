@@ -20,9 +20,11 @@ use cdragon_utils::{
 use cdragon_wad::WadHashKind;
 pub use serializer::{BinSerializer, BinEntriesSerializer};
 pub use data::*;
-pub use parser::BinEntryScanner;
+pub use parser::{BinEntryScanner, BinEntryScannerItem};
 pub use text_tree::TextTreeSerializer;
 pub use json::JsonSerializer;
+pub use visitor::{BinVisitor, BinTraversal};
+
 
 
 type Result<T, E = PropError> = std::result::Result<T, E>;
@@ -186,6 +188,24 @@ pub const fn compute_binhash_const(s: &str) -> u32 {
         i += 1;
     }
     h
+}
+
+/// Get a bin hash, either parsed from hex, or computed from a string
+///
+/// A hex hash can be surrounded by braces (e.g. `{012345678}`).
+///
+/// This method can be used to get a hash, known or not, from a user.
+pub fn binhash_from_str(s: &str) -> u32 {
+    let hash = {
+        if s.len() == 8 {
+            u32::from_str_radix(s, 16).ok()
+        } else if s.len() == 10 && s.starts_with('{') & s.ends_with('}') {
+            u32::from_str_radix(&s[1..9], 16).ok()
+        } else {
+            None
+        }
+    };
+    hash.unwrap_or_else(|| compute_binhash(s))
 }
 
 

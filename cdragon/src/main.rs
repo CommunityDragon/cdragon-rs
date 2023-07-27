@@ -1,17 +1,17 @@
 use std::fs;
 use std::io;
-use std::io::Write;
 use std::path::{Path, PathBuf};
 use clap::{Arg, ArgAction, value_parser};
 
 use cdragon_prop::{
     PropFile,
+    data::{BinEntryPath, BinClassName},
     BinHashMappers,
-    BinHashKind,
     BinSerializer,
     BinEntriesSerializer,
     TextTreeSerializer,
     JsonSerializer,
+    binhash_from_str,
 };
 use cdragon_rman::{
     Rman,
@@ -43,13 +43,12 @@ use guess_bin_hashes::{
 };
 
 type Result<T, E = Box<dyn std::error::Error>> = std::result::Result<T, E>;
-type BinEntryScanner = cdragon_prop::BinEntryScanner<io::BufReader<fs::File>>;
 
 
-
-/// Serialize a scanner to an entry serializer
-fn serialize_bin_scanner(scanner: BinEntryScanner, serializer: &mut dyn BinEntriesSerializer) -> Result<()> {
-    scanner.parse().try_for_each(|entry| -> Result<(), _> {
+/// Serialize entries from a given bin file path 
+fn serialize_bin_path<F: Fn(BinEntryPath, BinClassName) -> bool>(path: &PathBuf, serializer: &mut dyn BinEntriesSerializer, filter: F) -> Result<()> {
+    let scanner = PropFile::scan_entries_from_path(path)?;
+    scanner.filter_parse(filter).try_for_each(|entry| -> Result<(), _> {
         serializer.write_entry(&entry?).map_err(|e| e.into())
     })
 }
@@ -102,6 +101,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                          .short('j')
                          .action(ArgAction::SetTrue)
                          .help("Dump as JSON (output one object per `.bin` file)"))
+                    .arg(Arg::new("entry-type")
+                         .short('e')
+                         .value_name("type")
+                         .help("Dump only entries with the given type"))
             })
             .runner(|subm| {
                 let hmappers = match subm.get_one::<String>("hashes") {
@@ -115,17 +118,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 } else {
                     Box::new(TextTreeSerializer::new(&mut writer, &hmappers).write_entries()?) as Box<dyn BinEntriesSerializer>
                 };
+                let filter: Box<dyn Fn(BinEntryPath, BinClassName) -> bool> = match subm.get_one::<String>("entry-type") {
+                    Some(s) => {
+                        let ctype: BinClassName = binhash_from_str(s).into();
+                        Box::new(move |_, t| t == ctype)
+                    }
+                    None => Box::new(|_, _| true)
+                };
 
                 for path in subm.get_many::<PathBuf>("input").unwrap() {
-                    let path = Path::new(path);
                     if path.is_dir() {
                         for path in bin_files_from_dir(path) {
-                            let scanner = PropFile::scan_entries_from_path(path)?;
-                            serialize_bin_scanner(scanner, &mut *serializer)?;
+                            serialize_bin_path(&path, &mut *serializer, &filter)?;
                         }
                     } else {
-                        let scanner = PropFile::scan_entries_from_path(path)?;
-                        serialize_bin_scanner(scanner, &mut *serializer)?;
+                        serialize_bin_path(path, &mut *serializer, &filter)?;
                     }
                 }
 
@@ -392,33 +399,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     BinHashMappers::from_dirpath(Path::new(dir))?
                 };
 
-                let hashes = bin_hashes::collect_unknown_from_dir(path)?;
-                let output = Path::new(subm.get_one::<PathBuf>("output").unwrap());
-                fs::create_dir_all(output)?;
+                let mut hashes = bin_hashes::collect_unknown_from_dir(path)?;
+                bin_hashes::remove_known_from_unknown(&mut hashes, &hmappers);
 
-                // Then write the result, after excluding known hashes
-                for kind in BinHashKind::variants() {
-                    let path = output.join(match kind {
-                        BinHashKind::EntryPath => "unknown.binentries.txt",
-                        BinHashKind::ClassName => "unknown.bintypes.txt",
-                        BinHashKind::FieldName => "unknown.binfields.txt",
-                        BinHashKind::HashValue => "unknown.binhashes.txt",
-                    });
-                    let file = fs::File::create(path)?;
-                    let mut writer = io::BufWriter::new(file);
-                    let mapper = hmappers.get(kind);
-                    for hash in hashes.get(kind).iter() {
-                        if !mapper.is_known(*hash) {
-                            writeln!(writer, "{:08x}", hash)?;
-                        }
-                    }
-                }
+                let output = subm.get_one::<PathBuf>("output").unwrap();
+                bin_hashes::write_unknown(output.into(), &hashes)?;
 
                 Ok(())
             })
             )
         .add_nested(
-            NestedCommand::new("guess-hashes")
+            NestedCommand::new("guess")
             .options(|app| {
                 app
                     .about("Guess unknown hashes from BIN files")
@@ -433,27 +424,41 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                          .required(true)
                          .value_parser(value_parser!(PathBuf))
                          .help("Directory with known hash lists"))
+                    .arg(Arg::new("unknown")
+                         .short('u')
+                         .value_name("dir")
+                         .value_parser(value_parser!(PathBuf))
+                         .help("Directory with unknown hash lists"))
             })
             .runner(|subm| {
                 let path = subm.get_one::<PathBuf>("input").unwrap();
                 let hdir = Path::new(subm.get_one::<PathBuf>("hashes").unwrap());
-                let mut hmappers = BinHashMappers::from_dirpath(hdir)?;
+                let hmappers = BinHashMappers::from_dirpath(hdir)?;
+                let udir = subm.get_one::<PathBuf>("unknown").map(Path::new);
+                let mut hashes = if let Some(udir) = udir {
+                    bin_hashes::load_unknown(udir.into())?
+                } else {
+                    // Collect unknown hashes
+                    println!("Collecting unknown hashes...");
+                    bin_hashes::collect_unknown_from_dir(path)?
+                };
+                bin_hashes::remove_known_from_unknown(&mut hashes, &hmappers);
 
-                // Collect unknown hashes
-                let mut hashes = bin_hashes::collect_unknown_from_dir(path)?;
-                for kind in BinHashKind::variants() {
-                    let mapper = hmappers.get(kind);
-                    hashes.get_mut(kind).retain(|&h| !mapper.is_known(h));
+                println!("Guessing new hashes...");
+                let finder = BinHashFinder::new(hashes, hmappers)
+                    .on_found(|h, s| println!("{:08x} {}", h, s));
+                let mut guesser = BinHashGuesser::new(finder)
+                    .with_all_hooks();
+                    //.with_entry_stats();
+                guesser.guess_dir(path);
+                let finder = guesser.result();
+
+                println!("Updating files...");
+                finder.hmappers.write_dirpath(hdir)?;
+
+                if let Some(udir) = udir {
+                    bin_hashes::write_unknown(udir.into(), &finder.hashes)?;
                 }
-
-                let mut finder = BinHashFinder::new(&mut hashes, &mut hmappers);
-                finder.on_found = |h, s| println!("{:08x} {}", h, s);
-
-                let mut guesser = BinHashGuesser::new(path, finder);
-                guesser.guess_all();
-
-                //TODO don't write if nothing has been found?
-                hmappers.write_dirpath(hdir)?;
 
                 Ok(())
             })

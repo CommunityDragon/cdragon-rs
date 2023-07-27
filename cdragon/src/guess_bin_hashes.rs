@@ -1,36 +1,63 @@
-use std::path::{Path, PathBuf};
-use std::collections::HashMap;
-use walkdir::{WalkDir, DirEntry};
+use std::path::Path;
+use std::collections::{HashMap, HashSet};
 use cdragon_prop::{
-    NON_PROP_BASENAMES,
-    PropError,
-    PropFile,
+    data::*,
+    BinEntry,
     BinHashKind,
-    BinHashSets,
     BinHashMappers,
+    BinHashSets,
+    BinTraversal,
+    BinVisitor,
+    PropFile,
     compute_binhash,
     compute_binhash_const,
     binh,
     binget,
 };
-use cdragon_prop::data::*;
+use cdragon_utils::hashes::HashOrStr;
+use crate::utils::bin_files_from_dir;
 
 
 /// Base object to check bin hashes
-pub struct BinHashFinder<'a> {
-    hashes: &'a mut BinHashSets,
-    hmappers: &'a mut BinHashMappers,
+pub struct BinHashFinder {
+    /// Unknown hashes to find
+    pub hashes: BinHashSets,
+    /// Hash mappers where found hashes are added
+    pub hmappers: BinHashMappers,
     /// Callback called when a new hash is found
-    pub on_found: fn(u32, &str),
+    on_found: fn(u32, &str),
 }
 
-impl<'a> BinHashFinder<'a> {
-    pub fn new(hashes: &'a mut BinHashSets, hmappers: &'a mut BinHashMappers) -> Self {
+impl BinHashFinder {
+    pub fn new(hashes: BinHashSets, hmappers: BinHashMappers) -> Self {
         Self { hashes, hmappers, on_found: |_, _| {} }
     }
 
-    /// Check a single hash
-    pub fn check<S: Into<String> + AsRef<str>>(&mut self, kind: BinHashKind, value: S) {
+    pub fn on_found(mut self, f: fn(u32, &str)) -> Self {
+        self.on_found = f;
+        self
+    }
+
+    /// Return true if the given hash is unknown
+    pub fn is_unknown(&self, kind: BinHashKind, hash: u32) -> bool {
+        self.hashes.get(kind).contains(&hash)
+    }
+
+    /// Get a hash string for given hash
+    pub fn get_str(&self, kind: BinHashKind, hash: u32) -> Option<&str> {
+        self.hmappers.get(kind).get(hash)
+    }
+
+    /// Try to get a string for the given hash
+    pub fn try_str(&self, kind: BinHashKind, hash: u32) -> HashOrStr<u32, &str> {
+        match self.get_str(kind, hash) {
+            Some(s) => HashOrStr::Str(s),
+            None => HashOrStr::Hash(hash),
+        }
+    }
+
+    /// Check a single string to match any unknown hash of a kind
+    pub fn check_any<S: Into<String> + AsRef<str>>(&mut self, kind: BinHashKind, value: S) {
         let hash = compute_binhash(value.as_ref());
         if self.hashes.get_mut(kind).remove(&hash) {
             (self.on_found)(hash, value.as_ref());
@@ -38,8 +65,8 @@ impl<'a> BinHashFinder<'a> {
         }
     }
 
-    /// Check hashes from an iterable
-    pub fn check_from_iter<S: Into<String> + AsRef<str>>(&mut self, kind: BinHashKind, values: impl Iterator<Item=S>) {
+    /// Check an iterable of strings to match any unknown hash of a kind
+    pub fn check_any_from_iter<S: Into<String> + AsRef<str>>(&mut self, kind: BinHashKind, values: impl Iterator<Item=S>) {
         let hashes = self.hashes.get_mut(kind);
         let hmapper = self.hmappers.get_mut(kind);
         for value in values {
@@ -50,196 +77,454 @@ impl<'a> BinHashFinder<'a> {
             }
         }
     }
+
+    /// Check an iterable of strings to match a subset of unknown hash of a kind
+    pub fn check_selected_from_iter<S: Into<String> + AsRef<str>>(&mut self, kind: BinHashKind, selected: &HashSet<u32>, values: impl Iterator<Item=S>) {
+        let hashes = self.hashes.get_mut(kind);
+        let hmapper = self.hmappers.get_mut(kind);
+        for value in values {
+            let hash = compute_binhash(value.as_ref());
+            if selected.contains(&hash) {
+                if hashes.remove(&hash) {
+                    (self.on_found)(hash, value.as_ref());
+                    hmapper.insert(hash, value.into());
+                }
+            }
+        }
+    }
+
+    /// Check a single string to match a given hash
+    /// Return false if still unknown
+    pub fn check_one<S: Into<String> + AsRef<str>>(&mut self, kind: BinHashKind, hash: u32, value: S) -> bool {
+        let hashes = self.hashes.get_mut(kind);
+        if !hashes.contains(&hash) {
+            return true;
+        }
+        if hash == compute_binhash(value.as_ref()) {
+            hashes.remove(&hash);
+            (self.on_found)(hash, value.as_ref());
+            let hmapper = self.hmappers.get_mut(kind);
+            hmapper.insert(hash, value.into());
+            return true;
+        }
+        false
+    }
+
+    /// Check an iterable of strings to match a given hash
+    /// Return false if still unknown
+    pub fn check_one_from_iter<S: Into<String> + AsRef<str>>(&mut self, kind: BinHashKind, hash: u32, values: impl Iterator<Item=S>) -> bool {
+        let hashes = self.hashes.get_mut(kind);
+        if !hashes.contains(&hash) {
+            return true;
+        }
+        for value in values {
+            if hash == compute_binhash(value.as_ref()) {
+                hashes.remove(&hash);
+                (self.on_found)(hash, value.as_ref());
+                let hmapper = self.hmappers.get_mut(kind);
+                hmapper.insert(hash, value.into());
+                return true;
+            }
+        }
+        false
+    }
+}
+
+
+type GuessingFunc = fn(&BinEntry, &mut BinHashFinder);
+
+pub trait GuessingHook {
+    /// Return entry types to watch
+    fn entry_types(&self) -> &[BinClassName];
+    /// Guess from an entry
+    fn on_entry(&mut self, entry: &BinEntry, finder: &mut BinHashFinder);
+    /// Called at the end of guessing, to possibly correlate things at the end
+    fn on_end(&mut self, _finder: &mut BinHashFinder, _entries_by_type: &HashMap<BinClassName, Vec<BinEntryPath>>) {}
 }
 
 
 /// Guess bin hashes from bin files and hashes
-pub struct BinHashGuesser<'a> {
-    root: PathBuf,
-    finder: BinHashFinder<'a>,
+pub struct BinHashGuesser {
+    /// Hooks added to the guesser
+    hooks: Vec<Box<dyn GuessingHook>>,
+    /// Indexes of hooks registered for each entry type
+    registry: HashMap<BinClassName, Vec<usize>>,
+    /// Finder used to guess hashes
+    finder: BinHashFinder,
+    /// Collected entries paths, grouped by type
+    entries_by_type: HashMap<BinClassName, Vec<BinEntryPath>>,
 }
 
-impl<'a> BinHashGuesser<'a> {
-    pub fn new<P: AsRef<Path>>(root: P, finder: BinHashFinder<'a>) -> Self {
-        let root = root.as_ref();
-        let root = if root.ends_with("game") {
-            root.to_path_buf()
-        } else {
-            root.join("game")
-        };
-        Self { root, finder }
+impl BinHashGuesser {
+    pub fn new(finder: BinHashFinder) -> Self {
+        Self {
+            hooks: Vec::default(),
+            registry: HashMap::default(),
+            finder,
+            entries_by_type: HashMap::default(),
+        }
     }
 
-    /// Find character names, based on `data/characters/` subdirectories
-    pub fn collect_character_names(&self) -> Vec<String> {
-        WalkDir::new(self.root.join("data/characters")).max_depth(1)
-            .into_iter()
-            .filter_map(|e| e.ok())
-            .filter_map(|e| {
-                let path = e.path();
-                let name = path.file_name().unwrap().to_str().unwrap();
-                if path.join(format!("{}.bin", name)).is_file() {
-                    Some(name.to_owned())
-                } else {
-                    None
-                }
-            }).collect()
+    pub fn with_hook(mut self, hook: Box<dyn GuessingHook>) -> Self {
+        let i = self.hooks.len();
+        for t in hook.entry_types().iter() {
+            self.registry.entry(*t).or_default().push(i);
+        }
+        self.hooks.push(hook);
+        self
     }
 
-    /// Guess everything possible
-    pub fn guess_all(&mut self) {
-        macro_rules! guess {
-            ($f:ident) => {
-                self.$f().unwrap_or_else(|e| eprintln!("{} failed: {}", stringify!($f), e));
-            }
+    pub fn with_single_hook(self, typ: BinClassName, on_entry: GuessingFunc) -> Self {
+        self.with_hook(Box::new(SingleHook::new(typ, on_entry)))
+    }
+
+    pub fn with_multi_hook(self, types: &'static [BinClassName], on_entry: GuessingFunc) -> Self {
+        self.with_hook(Box::new(MultiHook::new(types, on_entry)))
+    }
+
+    //TODO
+    // - Items: for `ItemGroups`, entry path and `mItemGroupID` are linked
+    // - HudGameModeScoreData.mModeKeyName => "UX/HUD/Globals/ScoreData_{}"
+    //      not the mModeKeyName but definitely something
+    // - GameModeMapData parsing
+    // - ItemShopGameModeData contains item maps, hashes are paths to ItemData
+    // - Trophies
+    //   - pattern: Loadouts/SummonerTrophies/Trophies/%cup%/Trophy_%gem%
+    //   - %cup%: probably listed somewhere, or retrieved from other entries
+    //   - %gem%: 4 8 16
+    // - Pedestal
+    //   - pattern: Loadouts/SummonerTrophies/Pedestals/%pedestal%
+
+    /// Add all known hooks
+    #[allow(dead_code)]
+    pub fn with_all_hooks(self) -> Self {
+        self
+            .with_entry_from_attr_hooks()
+            .with_simple_hooks()
+            .with_character_hooks()
+            .with_collecting_hooks()
+    }
+
+    /// Add a hook to get some statistics on entries
+    #[allow(dead_code)]
+    pub fn with_entry_stats(self) -> Self {
+        self.with_hook(Box::new(EntryTypesStatsHook))
+    }
+
+    /// Add hooks to guess entry's path from an attribute
+    pub fn with_entry_from_attr_hooks(self) -> Self {
+        // Guess the entry path using a field value directly
+        macro_rules! EntryPathAttrHook {
+            ($typ:ident.$attr:ident) => { EntryPathAttrHook!(binh!(stringify!($typ)), $attr) };
+            ($typ:literal.$attr:ident) => { EntryPathAttrHook!($typ.into(), $attr) };
+            ($typ:expr, $attr:ident) => {
+                Box::new(SingleHook::new($typ, |entry, finder| {
+                    if finder.is_unknown(BinHashKind::EntryPath, entry.path.hash) {
+                        let arg = binget!(entry => $attr(BinString)).unwrap();
+                        finder.check_one(BinHashKind::EntryPath, entry.path.hash, &arg.0);
+                    }
+                }))
+            };
+            ([$typ:expr].$attr:ident) => {
+                Box::new(MultiHook::new($typ, |entry, finder| {
+                    if finder.is_unknown(BinHashKind::EntryPath, entry.path.hash) {
+                        let arg = binget!(entry => $attr(BinString)).unwrap();
+                        finder.check_one(BinHashKind::EntryPath, entry.path.hash, &arg.0);
+                    }
+                }))
+            };
         }
 
-        guess!(guess_common_entry_types_paths);
-        guess!(guess_from_characters);
-        guess!(guess_from_items);
-        guess!(guess_from_companions);
-        guess!(guess_from_summoner_emotes);
-        guess!(guess_from_summoner_trophies);
-        guess!(guess_from_tft_map_skins);
-        guess!(guess_from_shaders_shareddata);
-        guess!(guess_from_fonts);
-        guess!(guess_from_tooltips);
-    }
-
-    /// Guess hashes from all characters
-    pub fn guess_from_characters(&mut self) -> Result<(), PropError> {
-        for name in self.collect_character_names() {
-            self.guess_from_character(&name)?;
+        // Guess the entry path using a pattern and a field value
+        macro_rules! EntryPathPatternHook {
+            ($typ:ident.$attr:ident($ty:ty): $arg:ident => $fmt:literal, $val:expr) => {
+                Box::new(SingleHook::new(binh!(stringify!($typ)), |entry, finder| {
+                    if finder.is_unknown(BinHashKind::EntryPath, entry.path.hash) {
+                        let $arg = &binget!(entry => $attr($ty)).unwrap().0;
+                        finder.check_one(BinHashKind::EntryPath, entry.path.hash, format!($fmt, $val));
+                    }
+                }))
+            };
+            ($typ:ident.$attr:ident($ty:ty) => $fmt:literal) => {
+                EntryPathPatternHook!($typ.$attr(BinString): arg => $fmt, arg)
+            };
+            ($typ:ident.$attr:ident: $arg:ident => $fmt:literal, $val:expr) => {
+                EntryPathPatternHook!($typ.$attr(BinString): $arg => $fmt, $val)
+            };
+            ($typ:ident.$attr:ident => $fmt:literal) => {
+                EntryPathPatternHook!($typ.$attr(BinString) => $fmt)
+            };
         }
-        Ok(())
-    }
 
-    /// Guess hashes from character name (case insensitive)
-    pub fn guess_from_character(&mut self, name: &str) -> Result<(), PropError> {
-        let name = name.to_ascii_lowercase();
-        let path = self.root.join("data/characters").join(&name);
-
-        let mut cname: Option<String> = None;
-        let mut prefix: Option<String> = None;
-        // Collect spell and ability names in a shared map
-        let mut spell_names = HashMap::<BinEntryPath, String>::new();
-        let mut abilities: Option<Vec<BinEntryPath>> = None;
-        let mut ability_spells = HashMap::<BinEntryPath, Vec<BinEntryPath>>::new();
-
-        const FILTERED_TYPES: [u32; 4] = [
-            compute_binhash_const("CharacterRecord"),
-            compute_binhash_const("TFTCharacterRecord"),
-            compute_binhash_const("SpellObject"),
-            compute_binhash_const("AbilityObject"),
+        // Many types have their path in the `name` field
+        // We could also check `name` in all cases but that would require to parse ALL entries.
+        const NAMED_TYPES: [BinClassName; 29] = [
+            binh!(BinClassName, "StaticMaterialDef"),
+            binh!(BinClassName, "UISceneData"),
+            binh!(BinClassName, "UiElementGroupButtonData"),
+            binh!(BinClassName, "UiElementGroupData"),
+            binh!(BinClassName, "UiElementGroupFramedData"),
+            binh!(BinClassName, "UiElementGroupMeterData"),
+            binh!(BinClassName, "UiElementGroupSliderData"),
+            BinClassName { hash: 0x376d5bc9 },
+            BinClassName { hash: 0x39ce5bdd },
+            BinClassName { hash: 0x4218b45a },
+            BinClassName { hash: 0x5e447d8d },
+            BinClassName { hash: 0x89a3465f },
+            BinClassName { hash: 0x8c5a7cbe },
+            BinClassName { hash: 0x97caa9c2 },
+            BinClassName { hash: 0x9b4cc4fd },
+            BinClassName { hash: 0xa742684a },
+            BinClassName { hash: 0xa7ec17a8 },
+            BinClassName { hash: 0xb6d4a0f9 },
+            BinClassName { hash: 0xc209ee16 },
+            BinClassName { hash: 0xc3e489da },
+            BinClassName { hash: 0xc8336f7d },
+            BinClassName { hash: 0xc9e1a631 },
+            BinClassName { hash: 0xde9a30e2 },
+            BinClassName { hash: 0xe4e463fe },
+            BinClassName { hash: 0xe9f32215 },
+            BinClassName { hash: 0xf726b035 },
+            BinClassName { hash: 0x0a5d0595 },
+            BinClassName { hash: 0x1a65e950 },
+            BinClassName { hash: 0xd71d9476 },
         ];
 
-        // Open character's bin file
-        //TODO Add a method to scan and parse after checking the entry type
-        let scanner = PropFile::scan_entries_from_path(path.join(format!("{}.bin", name)))?;
-        for entry in scanner.filter_parse(|_, htype| FILTERED_TYPES.contains(&htype.hash)) {
-            let entry = entry?;
-            if entry.ctype == binh!("CharacterRecord") || entry.ctype == binh!("TFTCharacterRecord") {
-                cname = {
-                    if let Some(s) = binget!(entry => mCharacterName(BinString)) {
-                        Some(s.0.clone())
-                    } else {
-                        break;  // no character name, no need to continue
+        self
+            .with_hook(EntryPathAttrHook!([&NAMED_TYPES].name))
+            .with_hook(EntryPathAttrHook!(ContextualActionData.mObjectPath))
+            .with_hook(EntryPathAttrHook!(CustomShaderDef.objectPath))
+            .with_hook(EntryPathAttrHook!(MapContainer.mapPath))
+            .with_hook(EntryPathAttrHook!(MapPlaceableContainer.path))
+            .with_hook(EntryPathAttrHook!(RewardGroup.internalName))
+            .with_hook(EntryPathAttrHook!(VfxSystemDefinitionData.particlePath))
+            .with_hook(EntryPathPatternHook!(CharacterRecord.mCharacterName => "Characters/{}/CharacterRecords/Root"))
+            .with_hook(EntryPathPatternHook!(GameFontDescription.name => "UX/Fonts/Descriptions/{}"))
+            .with_hook(EntryPathPatternHook!(ItemData.itemID(BinS32) => "Items/{}"))
+            .with_hook(EntryPathPatternHook!(SpellObject.mScriptName => "Items/Spells/{}"))
+            .with_hook(EntryPathPatternHook!(SummonerEmote.summonerEmoteId(BinU32) => "Loadouts/SummonerEmotes/{}"))
+            .with_hook(EntryPathPatternHook!(TFTCharacterRecord.mCharacterName => "Characters/{}/CharacterRecords/Root"))
+            .with_hook(EntryPathPatternHook!(TFTRoundData.mName => "Maps/Shipping/Map22/Rounds/{}"))
+            .with_hook(EntryPathPatternHook!(TftItemData.mName => "Maps/Shipping/Map22/Items/{}"))
+            .with_hook(EntryPathPatternHook!(TftMapSkin.mapContainer: s => "Loadouts/TFTMapSkins/{}", s.rsplit_once('/').unwrap().1))
+            .with_hook(EntryPathPatternHook!(TftSetData.name => "Maps/Shipping/Map22/Sets/{}"))
+            .with_hook(EntryPathPatternHook!(TooltipFormat.mObjectName => "UX/Tooltips/{}"))
+            .with_hook(EntryPathPatternHook!(X3DSharedConstantBufferDef.name => "Shaders/SharedData/{}"))
+    }
+
+    /// Add relatively simple (but not trivial) hooks
+    pub fn with_simple_hooks(self) -> Self {
+        const RESOURCE_RESOLVER_TYPES: [BinClassName; 2] = [
+            binh!(BinClassName, "ResourceResolver"),
+            binh!(BinClassName, "GlobalResourceResolver"),
+        ];
+
+        fn guess_map_key_from_link_value_basename(map: &BinMap, finder: &mut BinHashFinder) {
+            if let Some(map) = &binget!(map => (BinHash, BinLink)) {
+                for (k, v) in map.iter() {
+                    if finder.is_unknown(BinHashKind::HashValue, k.0.hash) {
+                        if let Some(target) = finder.get_str(BinHashKind::EntryPath, v.0.hash) {
+                            if let Some((_, base)) = target.rsplit_once('/') {
+                                finder.check_one(BinHashKind::HashValue, k.0.hash, base.to_owned());
+                            }
+                        }
                     }
-                };
-                let cname = cname.as_ref().unwrap();
-                prefix = Some(format!("Characters/{}", cname));
-                let prefix = prefix.as_ref().unwrap();
-
-                // Now that we have the capitalized prefix, guess common entries.
-                // Note: possible entries actually depend on the character subtype, but it does not cost
-                // much to check them all.
-                self.finder.check_from_iter(BinHashKind::EntryPath, vec![
-                    format!("{}", prefix),
-                    format!("{}/CharacterRecords/Root", prefix),
-                    format!("{}/CharacterRecords/SLIME", prefix),
-                    format!("{}/CharacterRecords/URF", prefix),
-                    format!("{}/Skins/Meta", prefix),
-                    format!("{}/Skins/Root", prefix),
-                    format!("{}/CAC/{}_Base", prefix, cname),
-                ].into_iter());
-
-                // Spells can be found in different "directories", for instance:
-                // - common spells `Shared/Spells` (not checked)
-                // - children spells of "abilities"
-                // - cross-character spells (not checked)
-                if let Some(spell_names) = binget!(entry => spellNames(BinList)(BinString)) {
-                    let it = spell_names.iter()
-                        .map(|v| format!("{}/Spells/{}", prefix, v.0));
-                    self.finder.check_from_iter(BinHashKind::EntryPath, it);
-                }
-                if let Some(spell_names) = binget!(entry => extraSpells(BinList)(BinString)) {
-                    let it = spell_names.iter()
-                        .filter(|v| v.0 != "BaseSpell")
-                        .map(|v| format!("{}/Spells/{}", prefix, v.0));
-                    self.finder.check_from_iter(BinHashKind::EntryPath, it);
-                }
-                abilities = binget!(entry => mAbilities(BinList)(BinLink)).and_then(|v| Some(v.iter().map(|v| v.0).collect()));
-
-            } else if entry.ctype == binh!("SpellObject") {
-                if let Some(name) = binget!(entry => mScriptName(BinString)) {
-                    spell_names.insert(entry.path, name.0.to_owned());
-                }
-            } else if entry.ctype == binh!("AbilityObject") {
-                let name = binget!(entry => mName(BinString)).expect("AbilityObject without a name").0.to_owned();
-                spell_names.insert(entry.path, name);
-                let root_spell = binget!(entry => mRootSpell(BinLink)).expect("AbilityObject without a root spell").0;
-                let mut spells: Vec<BinEntryPath> = vec![root_spell];
-                if let Some(child_spells) = binget!(entry => mChildSpells(BinList)(BinLink)) {
-                    spells.extend(child_spells.iter().map(|v| v.0));
-                }
-                ability_spells.insert(entry.path, spells);
-            }
-        }
-
-        // Some characters are (almost) empty, ignore them
-        // Note that they usually have a `/Skins/Meta` entry which will not be guessed.
-        if cname.is_none() {
-            return Ok(());
-        }
-        let cname = cname.unwrap();
-        let prefix = prefix.unwrap();
-
-        // Check all collected spell names, just in case
-        self.finder.check_from_iter(BinHashKind::EntryPath, spell_names.values().map(|s| format!("{}/Spells/{}", prefix, s)));
-        // Check spells from abilities
-        if let Some(abilities) = abilities {
-            for hability in abilities {
-                // Some related characters use cross-character abilities (ex. Elemental Lux)
-                if let Some(ability_name) = spell_names.get(&hability) {
-                    self.finder.check_from_iter(BinHashKind::EntryPath, ability_spells[&hability].iter().map(|h| format!("{}/Spells/{}/{}", prefix, ability_name, spell_names[h])));
                 }
             }
         }
 
-        // Check skins
-        for direntry in Self::walk_bins(WalkDir::new(path.join("skins")).max_depth(1)) {
-            let mut skin_name = direntry.path().file_stem().unwrap().to_str().unwrap().to_owned();
-            if let Some(s) = skin_name.get_mut(0..1) {
-                s.make_ascii_uppercase();
-            }
-            let sprefix = format!("{}/Skins/{}", prefix, skin_name);
+        self
+            // Guess ResourceResolve.resourceMap keys from values
+            .with_multi_hook(&RESOURCE_RESOLVER_TYPES, |entry, finder| {
+                // Notes
+                // - 'Particles' paths are already guessed
+                // - Some entries don't exist at all
+                if let Some(map) = &binget!(entry => resourceMap(BinMap)) {
+                    guess_map_key_from_link_value_basename(map, finder);
 
-            self.finder.check_from_iter(BinHashKind::EntryPath, vec![
-                format!("{}", sprefix),
-                format!("{}/Resources", sprefix),
-                // Try both `Skins0X` and `SkinsX`
-                format!("{}/CAC/{}_{}", prefix, cname, skin_name),
-                format!("{}/CAC/{}_{}", prefix, cname, skin_name.replace("Skins", "Skins0")),
-            ].into_iter());
+                    /*
+                    // Guess value from key (append to entry's prefix)
+                    if let Some(path) = finder.get_str(BinHashKind::EntryPath, entry.path.hash).and_then(|p| p.rsplit_once('/')) {
+                        let path = path.to_owned();
+                        for (k, v) in map.iter() {
+                            if finder.is_unknown(BinHashKind::HashValue, v.0.hash) {
+                                if let Some(key) = finder.get_str(BinHashKind::EntryPath, k.0.hash)
+                                    finder.check_one(BinHashKind::HashValue, k.0.hash, ...);
+                                }
+                            }
+                        }
+                    }
+                    */
+                }
+            })
 
-            // Parse all entries, don't bother filtering
-            for entry in PropFile::from_path(direntry.path())?.entries {
-                if entry.ctype == binh!("SkinCharacterDataProperties") {
-                    //TODO mContextualActionData is usually included in another file
-                    binget!(entry => name(BinString)).map(|v| self.finder.check(BinHashKind::EntryPath, &v.0));
+            // Guess from ViewControllerList
+            .with_single_hook(binh!("ViewControllerList"), |entry, finder| {
+                // Assume all strings are entry paths (true in practice)
+                // No maps, visit only lists and structs
+                struct CheckStrings<'a> {
+                    finder: &'a mut BinHashFinder,
+                }
+
+                impl<'a> BinVisitor for CheckStrings<'a> {
+                    fn visit_type(&mut self, btype: BinType) -> bool {
+                        matches!(btype,
+                            BinType::String |
+                            BinType::List |
+                            BinType::List2 |
+                            BinType::Struct |
+                            BinType::Embed)
+                    }
+
+                    fn visit_string(&mut self, value: &BinString) {
+                        self.finder.check_any(BinHashKind::EntryPath, &value.0);
+                    }
+                }
+
+                let mut visitor = CheckStrings { finder };
+                entry.traverse_bin(&mut visitor);
+            })
+
+            // Guess from ViewControllerSet
+            .with_single_hook(binh!("ViewControllerSet"), |entry, finder| {
+                if let Some(list) = binget!(entry => SpecifiedGameModes(BinList)(BinString)) {
+                    let it = list.iter().map(|v| &v.0);
+                    finder.check_any_from_iter(BinHashKind::EntryPath, it);
+                }
+            })
+
+            // Guess TftMapGroupData links, from TftMapSkin.GroupLink
+            .with_single_hook(binh!("TftMapSkin"), |entry, finder| {
+                if let Some(BinString(s)) = binget!(entry => GroupLink(BinString)) {
+                    // Link to TftMapGroupData entry
+                    finder.check_any(BinHashKind::EntryPath, s);
+                }
+            })
+
+            // Guess ItemGroups path from ItemGroup.mItemGroupID (a hash)
+            .with_single_hook(binh!("ItemGroup"), |entry, finder| {
+                if finder.is_unknown(BinHashKind::EntryPath, entry.path.hash) {
+                    if let Some(hash) = binget!(entry => mItemGroupID(BinHash)) {
+                        if let Some(id) = finder.get_str(BinHashKind::HashValue, hash.0.hash) {
+                            finder.check_one(BinHashKind::EntryPath, entry.path.hash, format!("Items/ItemGroup/{}", id));
+                        }
+                    }
+                }
+            })
+
+            // Guess CompanionSpeciesData path from CompanionData.speciesLink
+            .with_single_hook(binh!("CompanionData"), |entry, finder| {
+                if finder.is_unknown(BinHashKind::EntryPath, entry.path.hash) {
+                    if let Some(s) = binget!(entry => speciesLink(BinString)) {
+                        finder.check_any(BinHashKind::EntryPath, &s.0);
+                    }
+                }
+            })
+
+            // Guess various from MapPlaceableContainer.items
+            // Values of type GdsMapObject have a {ad304db5} path
+            .with_single_hook(binh!("MapPlaceableContainer"), |entry, finder| {
+                if let Some(map) = binget!(entry => items(BinMap)(BinHash, BinStruct)) {
+                    let it = map.iter().filter_map(|(_, data)| {
+                        if data.ctype == binh!("GdsMapObject") {
+                            binget!(data => 0xad304db5(BinString)).map(|s| &s.0)
+                        } else {
+                            None
+                        }
+                    });
+                    finder.check_any_from_iter(BinHashKind::EntryPath, it);
+                }
+            })
+
+            // Guess MapContainer.chunks keys from values
+            .with_single_hook(binh!("MapContainer"), |entry, finder| {
+                if let Some(map) = &binget!(entry => chunks(BinMap)) {
+                    guess_map_key_from_link_value_basename(map, finder);
+                }
+            })
+
+    }
+
+    /// Add guessing from character data
+    pub fn with_character_hooks(self) -> Self {
+        const CHARACTER_RECORDS: [BinClassName; 2] = [
+            binh!(BinClassName, "CharacterRecord"),
+            binh!(BinClassName, "TFTCharacterRecord"),
+        ];
+
+        self
+            .with_multi_hook(&CHARACTER_RECORDS, on_character_record_entry)
+            .with_single_hook(binh!("SkinCharacterDataProperties"), on_skin_character_data_entry)
+            // Guess `AnimationGraphData.mClipDataMap` from `mAnimationResourceData.mAnimationFilePath`
+            .with_single_hook(binh!("AnimationGraphData"), |entry, finder| {
+                fn check_clip_data(hash: u32, data: &BinStruct, finder: &mut BinHashFinder) -> Option<()> {
+                    if finder.is_unknown(BinHashKind::HashValue, hash) {
+                        let path = &binget!(data => mAnimationResourceData(BinEmbed).mAnimationFilePath(BinString))?.0;
+                        let path = path.strip_suffix(".anm")?;
+                        let (_, path) = path.split_once('/')?;
+                        let path: String = path.chars().scan(false, |upper, c| {
+                            if c == '_' {
+                                *upper = true;
+                                Some('_')
+                            } else if *upper {
+                                *upper = false;
+                                Some(c.to_ascii_uppercase())
+                            } else {
+                                Some(c)
+                            }
+                        }).collect();
+                        let it = path.rmatch_indices('_').map(|(i, _)| &path[i+1..]);
+                        finder.check_one_from_iter(BinHashKind::HashValue, hash, it);
+                    }
+                    None
+                }
+
+                if let Some(map) = binget!(entry => mClipDataMap(BinMap)(BinHash, BinStruct)) {
+                    for (hash, clip_data) in map {
+                        check_clip_data(hash.0.hash, clip_data, finder);
+                    }
+                }
+            })
+
+    }
+
+    /// Add hooks that use collected entry types
+    pub fn with_collecting_hooks(self) -> Self {
+        self
+            .with_hook(Box::new(ItemShopHashesHook::default()))
+    }
+
+    /// End guessing, return the updated finder
+    pub fn result(mut self) -> BinHashFinder {
+        for mut hook in self.hooks {
+            hook.on_end(&mut self.finder, &self.entries_by_type)
+        }
+        self.finder
+    }
+
+    /// Run the guesser
+    pub fn guess_dir<P: AsRef<Path>>(&mut self, root: P) {
+        for path in bin_files_from_dir(root) {
+            if let Ok(scanner) = PropFile::scan_entries_from_path(path) {
+                let mut scanner = scanner.scan();
+                while let Some(Ok(item)) = scanner.next() {
+                    self.entries_by_type.entry(item.ctype).or_default().push(item.path);
+                    if let Some(indexes) = self.registry.get(&item.ctype) {
+                        if let Ok(entry) = item.read() {
+                            for i in indexes {
+                                self.hooks[*i].on_entry(&entry, &mut self.finder);
+                            }
+                        }
+                    }
                 }
             }
         }
+    }
+
+    /*TODO
+    /// Guess hashes from character name (case insensitive)
+    pub fn guess_from_character(&mut self, name: &str) -> Result<(), PropError> {
+        ...
 
         // Check animations
         for direntry in Self::walk_bins(WalkDir::new(path.join("animations")).max_depth(1)) {
@@ -257,48 +542,7 @@ impl<'a> BinHashGuesser<'a> {
         Ok(())
     }
 
-    /// Guess hashes from items
-    pub fn guess_from_items(&mut self) -> Result<(), PropError> {
-        for entry in PropFile::from_path(self.root.join("global/items/items.bin"))?.entries {
-            if entry.ctype == binh!("SpellObject") {
-                if let Some(v) = entry.getv::<BinString>(binh!("mScriptName")) {
-                    self.finder.check(BinHashKind::EntryPath, format!("Items/Spells/{}", v.0));
-                }
-            } else if entry.ctype == binh!("ItemData") {
-                if let Some(v) = entry.getv::<BinS32>(binh!("itemID")) {
-                    self.finder.check(BinHashKind::EntryPath, format!("Items/{}", v.0));
-                }
-            }
-        }
 
-        //XXX For `ItemGroups`, entry path and `mItemGroupID` are linked
-
-        Ok(())
-    }
-
-    pub fn guess_from_companions(&mut self) -> Result<(), PropError> {
-        for entry in PropFile::from_path(self.root.join("global/loadouts/companions.bin"))?.entries {
-            if entry.ctype == binh!("CompanionData") {
-                if let Some(v) = entry.getv::<BinString>(binh!("speciesLink")) {
-                    self.finder.check(BinHashKind::EntryPath, &v.0);
-                }
-            }
-        }
-        Ok(())
-    }
-
-    pub fn guess_from_summoner_emotes(&mut self) -> Result<(), PropError> {
-        for entry in PropFile::from_path(self.root.join("global/loadouts/summoneremotes.bin"))?.entries {
-            if entry.ctype == binh!("CompanionData") {
-                if let Some(v) = entry.getv::<BinString>(binh!("speciesLink")) {
-                    self.finder.check(BinHashKind::EntryPath, &v.0);
-                }
-            } else if entry.ctype == binh!("SummonerEmote") {
-                if let Some(v) = entry.getv::<BinU32>(binh!("summonerEmoteId")) {
-                    self.finder.check(BinHashKind::EntryPath, format!("Loadouts/SummonerEmotes/{}", v.0));
-                }
-            }
-        }
         Ok(())
     }
 
@@ -317,88 +561,243 @@ impl<'a> BinHashGuesser<'a> {
         Ok(())
     }
 
-    pub fn guess_from_tft_map_skins(&mut self) -> Result<(), PropError> {
-        for entry in PropFile::from_path(self.root.join("global/loadouts/tftmapskins.bin"))?.entries {
-            if entry.ctype == binh!("TftMapSkin") {
-                if let Some(v) = entry.getv::<BinString>(binh!("mapContainer")) {
-                    let name = v.0.rsplit('/').next().unwrap();
-                    self.finder.check(BinHashKind::EntryPath, format!("Loadouts/TFTMapSkins/{}", name))
-                }
-                if let Some(v) = entry.getv::<BinString>(0xfb59da5c.into()) {
-                    self.finder.check(BinHashKind::EntryPath, &v.0);
-                }
-            }
-        }
-        Ok(())
-    }
-
-    pub fn guess_from_shaders_shareddata(&mut self) -> Result<(), PropError> {
-        for entry in PropFile::from_path(self.root.join("assets/shaders/shareddata.bin"))?.entries {
-            if entry.ctype == binh!("X3DSharedConstantBufferDef") {
-                let name = &binget!(entry => name(BinString)).expect("missing name").0;
-                self.finder.check(BinHashKind::EntryPath, format!("Shaders/SharedData/{}", name));
-            }
-        }
-        Ok(())
-    }
-
-    pub fn guess_from_fonts(&mut self) -> Result<(), PropError> {
-        for entry in PropFile::from_path(self.root.join("ux/fonts.bin"))?.entries {
-            if entry.ctype == binh!("GameFontDescription") {
-                let name = &binget!(entry => name(BinString)).expect("missing name").0;
-                self.finder.check(BinHashKind::EntryPath, format!("UX/Fonts/Descriptions/{}", name));
-            }
-        }
-        Ok(())
-    }
-
-    pub fn guess_from_tooltips(&mut self) -> Result<(), PropError> {
-        for entry in PropFile::from_path(self.root.join("ux/tooltips.bin"))?.entries {
-            if entry.ctype == binh!("TooltipFormat") {
-                let name = &binget!(entry => mObjectName(BinString)).expect("missing name").0;
-                self.finder.check(BinHashKind::EntryPath, format!("UX/Tooltips/{}", name));
-            }
-        }
-        Ok(())
-    }
-
-    /// Guess entry paths for common types
-    pub fn guess_common_entry_types_paths(&mut self) -> Result<(), PropError> {
-        let mut htype_to_field = HashMap::<BinClassName, BinFieldName>::new();
-        htype_to_field.insert(binh!("ContextualActionData"), binh!("mObjectPath"));
-        htype_to_field.insert(binh!("CustomShaderDef"), binh!("objectPath"));
-        htype_to_field.insert(binh!("StaticMaterialDef"), binh!("name"));
-        htype_to_field.insert(binh!("MapContainer"), binh!("mapPath"));
-        htype_to_field.insert(binh!("MapPlaceableContainer"), binh!("path"));
-        htype_to_field.insert(binh!("VfxSystemDefinitionData"), binh!("particlePath"));
-
-        for direntry in Self::walk_bins(WalkDir::new(&self.root)) {
-            let scanner = PropFile::scan_entries_from_path(direntry.path())?;
-            for entry in scanner.filter_parse(|_, htype| htype_to_field.contains_key(&htype)) {
-                let entry = entry?;
-                //XXX Cannot use `match` because of `binh!`
-                let hfield = htype_to_field[&entry.ctype];
-                if let Some(v) = entry.getv::<BinString>(hfield) {
-                    self.finder.check(BinHashKind::EntryPath, &v.0);
-                }
-            }
-        }
-        Ok(())
-    }
-
     // Guess `Emblems/{N}` from `data/emblems.bin`
     // Get spells, etc. from non-character .bin (if any)
+    */
+}
 
-    /// Helper to filter "good" bin entries from a `WalkDir`
-    fn walk_bins(walk: WalkDir) -> impl Iterator<Item=DirEntry> {
-        walk.into_iter()
-            .filter_map(|e| e.ok())
-            .filter(|e| {
-                e.path().extension().map_or(false, |s| s == "bin") &&
-                e.file_name().to_str()
-                    .map(|s| !NON_PROP_BASENAMES.contains(&s))
-                    .unwrap_or(false)
-            })
+
+pub struct SingleHook {
+    types: [BinClassName; 1],
+    on_entry: GuessingFunc,
+}
+
+impl SingleHook {
+    pub fn new(typ: BinClassName, on_entry: GuessingFunc) -> Self {
+        Self { types: [typ], on_entry }
+    }
+}
+
+impl GuessingHook for SingleHook {
+    fn entry_types(&self) -> &[BinClassName] {
+        &self.types
+    }
+
+    fn on_entry(&mut self, entry: &BinEntry, finder: &mut BinHashFinder) {
+        (self.on_entry)(entry, finder)
+    }
+}
+
+pub struct MultiHook {
+    types: &'static [BinClassName],
+    on_entry: GuessingFunc,
+}
+
+impl MultiHook {
+    pub fn new(types: &'static [BinClassName], on_entry: GuessingFunc) -> Self {
+        Self { types, on_entry }
+    }
+}
+
+impl GuessingHook for MultiHook {
+    fn entry_types(&self) -> &[BinClassName] {
+        self.types
+    }
+
+    fn on_entry(&mut self, entry: &BinEntry, finder: &mut BinHashFinder) {
+        (self.on_entry)(entry, finder)
+    }
+}
+
+
+/// Guess hashes from character data: derived pattern, spells 
+fn on_character_record_entry(entry: &BinEntry, finder: &mut BinHashFinder) {
+    let cname = match &binget!(entry => mCharacterName(BinString)) {
+        Some(s) => &s.0,
+        None => return,
+    };
+    let prefix = format!("Characters/{}", cname);
+
+    // Common entries.
+    // Note: possible entries actually depend on the character subtype, but it does not cost
+    // much to check them all.
+    finder.check_any_from_iter(BinHashKind::EntryPath, vec![
+        format!("{}", prefix),
+        format!("{}/CharacterRecords/Root", prefix),
+        format!("{}/CharacterRecords/SLIME", prefix),
+        format!("{}/CharacterRecords/URF", prefix),
+        format!("{}/Skins/Meta", prefix),
+        format!("{}/Skins/Root", prefix),
+    ].into_iter());
+
+    // Spells can be found in different "directories", for instance:
+    // - common spells `Shared/Spells` (not checked)
+    // - children spells of "abilities"
+    // - cross-character spells (not checked)
+    //
+    // SpellObject of abilities are under their AbilityObject
+    // - spell: Characters/{char}/Spells/{ability}Ability/{spell}
+    // - ability: Characters/{char}/Spells/{ability}Ability
+    // Ability spells are under `AbilityObject.mChildSpells`
+    // Their `{ability}Ability/{spell}` suffix is also under `CharacterRecord.spellNames`
+    //
+    // `AbilityObject.mName` and `SpellObject.mScriptName` are unique, but separately.
+
+    let spell_path = |s: &BinString| {
+        format!("{}/Spells/{}", prefix, s.0)
+    };
+
+    fn attack_slot_name(attack_slot: &BinEmbed) -> Option<&BinString> {
+        binget!(attack_slot => mAttackName(BinOption)(BinString))
+    }
+
+    // AttackSlotData fields
+    if let Some(name) = binget!(entry => basicAttack(BinEmbed)) {
+        if let Some(name) = attack_slot_name(name).map(spell_path) {
+            finder.check_any(BinHashKind::EntryPath, name);
+        }
+    }
+    if let Some(names) = binget!(entry => extraAttacks(BinList)(BinEmbed)) {
+        let it = names.iter().filter_map(attack_slot_name).map(spell_path);
+        finder.check_any_from_iter(BinHashKind::EntryPath, it);
+    }
+    if let Some(names) = binget!(entry => critAttacks(BinList)(BinEmbed)) {
+        let it = names.iter().filter_map(attack_slot_name).map(spell_path);
+        finder.check_any_from_iter(BinHashKind::EntryPath, it);
+    }
+
+    // spellNames, includes `{ability}Ability/{spell}` names
+    if let Some(names) = binget!(entry => spellNames(BinList)(BinString)) {
+        let it = names.iter().map(spell_path);
+        finder.check_any_from_iter(BinHashKind::EntryPath, it);
+        // Also check for abilities by removing the basename 
+        //XXX Do it for ALL spells instead?
+        let it = names.iter().filter_map(|name| {
+            let parent = name.0.split_once('/')?.0;
+            if parent.is_empty() {
+                None
+            } else {
+                Some(format!("{}/Spells/{}", prefix, parent))
+            }
+        });
+        finder.check_any_from_iter(BinHashKind::EntryPath, it);
+    }
+
+    // extraSpells, other spells, ignore the false `BaseSpell`
+    if let Some(names) = binget!(entry => extraSpells(BinList)(BinString)) {
+        let it = names.iter().filter(|v| v.0 != "BaseSpell").map(spell_path);
+        finder.check_any_from_iter(BinHashKind::EntryPath, it);
+    }
+}
+
+/// Guess hashes from skin data
+fn on_skin_character_data_entry(entry: &BinEntry, finder: &mut BinHashFinder) {
+    let path = finder.get_str(BinHashKind::EntryPath, entry.path.hash)
+        .map(|s| s.to_owned())
+        .or_else(|| {
+            // Try to guess the skin path
+            // Assume `{character}Skin{N}` format, but it does not work for TFT and others
+            //XXX Previous guessing used the .bin path. Iterate on all numbers?
+            let s = &binget!(entry => championSkinName(BinString))?.0;
+            let (champ, skin) = s.rfind("Skin").map(|i| s.split_at(i))?;
+            let path = format!("Characters/{}/Skins/{}", champ, skin);
+            if finder.check_one(BinHashKind::EntryPath, entry.path.hash, &path) {
+                Some(path)
+            } else {
+                None
+            }
+        });
+    let path = match path {
+        Some(p) => p,
+        None => return,
+    };
+
+    if let Some(resolver) = binget!(entry => mResourceResolver(BinLink)) {
+        finder.check_one(BinHashKind::EntryPath, resolver.0.hash, format!("{}/Resources", path));
+    }
+
+    if let Some(animation) = binget!(entry => skinAnimation(BinStruct).animationGraphData(BinLink)) {
+        let mut split = path.rsplitn(3, '/');
+        if let (Some(character), Some("Skins"), Some(skin)) = (split.next(), split.next(), split.next()) {
+            finder.check_one(BinHashKind::EntryPath, animation.0.hash, format!("{}/Animation/{}", character, skin));
+        }
+    }
+}
+
+/// Guess item hashes in ItemShopGameModeData
+#[derive(Default)]
+pub struct ItemShopHashesHook {
+    hashes: HashSet<u32>,
+}
+
+impl ItemShopHashesHook {
+    fn extend_with_list(&mut self, field: &BinList) {
+        if let Some(list) = binget!(field => (BinHash)) {
+            self.hashes.extend(list.iter().map(|v| v.0.hash));
+        }
+    }
+}
+
+impl GuessingHook for ItemShopHashesHook {
+    fn entry_types(&self) -> &[BinClassName] {
+        const TYPES: [BinClassName; 1] = [
+            binh!(BinClassName, "ItemShopGameModeData"),
+        ];
+        &TYPES
+    }
+
+    fn on_entry(&mut self, entry: &BinEntry, _finder: &mut BinHashFinder) {
+        if let Some(list) = binget!(entry => 0xc561f8e9(BinList)) {
+            self.extend_with_list(list);
+        }
+        if let Some(list) = binget!(entry => 0x37792a41(BinList)) {
+            self.extend_with_list(list);
+        }
+        if let Some(list) = binget!(entry => CompletedItems(BinList)) {
+            self.extend_with_list(list);
+        }
+        if let Some(list) = binget!(entry => 0x891a5676(BinStruct).items(BinList)) {
+            self.extend_with_list(list);
+        }
+    }
+
+    fn on_end(&mut self, finder: &mut BinHashFinder, entries_by_type: &HashMap<BinClassName, Vec<BinEntryPath>>) {
+        // Filter out known hashes
+        self.hashes.retain(|h| finder.is_unknown(BinHashKind::HashValue, *h));
+        if !self.hashes.is_empty() {
+            if let Some(candidates) = entries_by_type.get(&binh!("ItemData")) {
+                let candidates: Vec<String> = candidates.iter()
+                    .map(|h| h.hash)
+                    .filter(|h| self.hashes.contains(h))
+                    .filter_map(|h| finder.get_str(BinHashKind::EntryPath, h))
+                    .map(|s| s.to_owned())
+                    .collect();
+                finder.check_selected_from_iter(BinHashKind::HashValue, &self.hashes, candidates.iter());
+            }
+        }
+    }
+}
+
+
+/// Hook to dump some information about entry types
+#[derive(Default)]
+pub struct EntryTypesStatsHook;
+
+impl GuessingHook for EntryTypesStatsHook {
+    fn entry_types(&self) -> &[BinClassName] {
+        &[]
+    }
+
+    fn on_entry(&mut self, _entry: &BinEntry, _finder: &mut BinHashFinder) {}
+
+    fn on_end(&mut self, finder: &mut BinHashFinder, entries_by_type: &HashMap<BinClassName, Vec<BinEntryPath>>) {
+        // Filter out known hashes
+        for (ctype, paths) in entries_by_type.iter() {
+            let hstr = finder.try_str(BinHashKind::ClassName, ctype.hash);
+            let nall = paths.len();
+            let nunknown = paths.iter().filter(|h| finder.is_unknown(BinHashKind::EntryPath, h.hash)).count();
+            println!("?: {:5} / {:5}  |  {}", nunknown, nall, hstr);
+        }
     }
 }
 

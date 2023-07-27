@@ -165,6 +165,17 @@ impl<R: Read> BinEntryScanner<R> {
         Ok(Self { reader, htypes_iter: entry_types.into_iter(), is_patch })
     }
 
+    /// Scan entries, allow to parse or skip each entry
+    ///
+    /// The result behaves provides `next()` but is not an `Iterator`.
+    pub fn scan(self) -> BinEntryScanScan<R> {
+        BinEntryScanScan {
+            reader: self.reader,
+            htypes_iter: self.htypes_iter,
+            length: None,
+        }
+    }
+
     /// Scan entries, iterate on headers (path, type)
     pub fn headers(self) -> BinEntryScanHeaders<R> {
         BinEntryScanHeaders {
@@ -191,6 +202,11 @@ impl<R: Read> BinEntryScanner<R> {
         }
     }
 }
+
+// Note: A trait alias would be better, but they are not available
+/// Item type for entry scanning
+pub type BinEntryScannerItem = Result<BinEntry>;
+
 
 /// Common methods for BinEntryScanner iterators
 trait BinEntryScan {
@@ -277,7 +293,7 @@ where R: Read, F: Fn(BinEntryPath, BinClassName) -> bool {
 
 impl<R, F> Iterator for BinEntryScanFilterParse<R, F>
 where R: Read, F: Fn(BinEntryPath, BinClassName) -> bool {
-    type Item = Result<BinEntry>;
+    type Item = BinEntryScannerItem;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
@@ -310,13 +326,79 @@ impl<R: Read> BinEntryScan for BinEntryScanParse<R> {
 }
 
 impl<R: Read> Iterator for BinEntryScanParse<R> {
-    type Item = Result<BinEntry>;
+    type Item = BinEntryScannerItem;
 
     fn next(&mut self) -> Option<Self::Item> {
         let ctype = self.htypes_iter.next()?;
         Some(self.next_result(ctype))
     }
 }
+
+
+// Iterator-like
+//
+// It does NOT implemented `Iterator` but behaves similarly.
+pub struct BinEntryScanScan<R>
+where R: Read {
+    reader: R,
+    length: Option<u32>,
+    htypes_iter: std::vec::IntoIter<BinClassName>,
+}
+
+pub struct BinEntryScanItem<'a, R>
+where R: Read {
+    owner: &'a mut BinEntryScanScan<R>,
+    pub path: BinEntryPath,
+    pub ctype: BinClassName,
+}
+
+impl<'a, R> BinEntryScanItem<'a, R>
+where R: Read {
+    pub fn read(self) -> Result<BinEntry> {
+        self.owner.read_entry(self.path, self.ctype)
+    }
+}
+
+
+impl<R> BinEntryScan for BinEntryScanScan<R>
+where R: Read {
+    type Reader = R;
+    type Output = (u32, BinEntryPath, BinClassName);
+
+    fn next_result(&mut self, ctype: BinClassName) -> Result<Self::Output> {
+        let (length, path) = Self::next_scan(&mut self.reader)?;
+        Ok((length, path, ctype))
+    }
+}
+
+impl<R> BinEntryScanScan<R>
+where R: Read {
+    pub fn next(&mut self) -> Option<Result<BinEntryScanItem<'_, R>>> {
+        // Note: the entry is skipped and thus fails at the next iteration
+        if let Some(length) = self.length.take() {
+            if let Err(err) = Self::skip_fields(&mut self.reader, length) {
+                return Some(Err(err));
+            }
+        }
+        let ctype = self.htypes_iter.next()?;
+        match self.next_result(ctype) {
+            Ok((length, path, ctype)) => {
+                self.length = Some(length);
+                Some(Ok(BinEntryScanItem { owner: self, path, ctype }))
+            }
+            Err(err) => Some(Err(err)),
+        }
+        
+    }
+
+    fn read_entry(&mut self, path: BinEntryPath, ctype: BinClassName) -> Result<BinEntry> {
+        // Double calls are not possible using public API
+        let length = self.length.take().unwrap();
+        let fields = Self::read_fields(&mut self.reader, length)?;
+        Ok(BinEntry { path, ctype, fields })
+    }
+}
+
 
 
 /// Parse a single BinEntry, starts at its header

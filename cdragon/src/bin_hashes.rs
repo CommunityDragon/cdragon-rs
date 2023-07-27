@@ -1,13 +1,18 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::fs::File;
+use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::collections::HashSet;
 use cdragon_prop::{
-    BinHashSets,
     BinEntry,
+    BinHashMappers,
+    BinHashSets,
+    BinTraversal,
+    BinVisitor,
     PropError,
     PropFile,
     data::*,
-    visitor::{BinVisitor, BinTraversal},
 };
+use cdragon_utils::hashes::HashError;
 use super::bin_files_from_dir;
 
 #[derive(Default)]
@@ -19,16 +24,15 @@ impl BinVisitor for CollectHashesVisitor {
     // Note: Don't collect WAD paths (BinPath)
 
     fn visit_type(&mut self, btype: BinType) -> bool {
-        match btype {
+        matches!(btype,
             BinType::Hash |
-            BinType::List | BinType::List2 |
+            BinType::List |
+            BinType::List2 |
             BinType::Struct |
             BinType::Embed |
             BinType::Link |
             BinType::Option |
-            BinType::Map => true,
-            _ => false,
-        }
+            BinType::Map)
     }
 
     fn visit_entry(&mut self, value: &BinEntry) -> bool {
@@ -73,6 +77,59 @@ pub fn collect_unknown_from_dir<P: AsRef<Path>>(root: P) -> Result<BinHashSets, 
     Ok(visitor.hashes)
 }
 
+fn unknown_path(kind: BinHashKind) -> &'static str {
+    match kind {
+        BinHashKind::EntryPath => "unknown.binentries.txt",
+        BinHashKind::ClassName => "unknown.bintypes.txt",
+        BinHashKind::FieldName => "unknown.binfields.txt",
+        BinHashKind::HashValue => "unknown.binhashes.txt",
+    }
+}
+
+fn load_unknown_file<P: AsRef<Path>>(path: P) -> Result<HashSet<u32>, HashError> {
+    let file = File::open(&path)?;
+    let reader = BufReader::new(file);
+    reader.lines()
+        .map(|line| -> Result<u32, HashError> {
+            line.map_err(HashError::Io).and_then(|line| {
+                let line = line.trim_end();
+                u32::from_str_radix(line, 16).map_err(|_| HashError::InvalidHashLine(line.to_owned()))
+            })
+        })
+        .collect()
+}
+
+/// Load unknown hashes from text files in a directory
+pub fn load_unknown(path: PathBuf) -> Result<BinHashSets, HashError> {
+    let mut unknown = BinHashSets::default();
+    for kind in BinHashKind::variants() {
+        *unknown.get_mut(kind) = load_unknown_file(path.join(unknown_path(kind)))?;
+    }
+    Ok(unknown)
+}
+
+/// Write (unknown) hashes to text files in a directory
+pub fn write_unknown(path: PathBuf, hashes: &BinHashSets) -> Result<(), HashError> {
+    std::fs::create_dir_all(&path)?;
+    for kind in BinHashKind::variants() {
+        let file = File::create(path.join(unknown_path(kind)))?;
+        let mut writer = BufWriter::new(file);
+        for hash in hashes.get(kind).iter() {
+            writeln!(writer, "{:08x}", hash)?;
+        }
+    }
+    Ok(())
+}
+
+/// Remove known hashes from `BinHashSets`
+pub fn remove_known_from_unknown(unknown: &mut BinHashSets, hmappers: &BinHashMappers) {
+    for kind in BinHashKind::variants() {
+        let mapper = hmappers.get(kind);
+        unknown.get_mut(kind).retain(|h| !mapper.is_known(*h));
+    }
+}
+
+
 
 #[derive(Default)]
 struct CollectStringsVisitor {
@@ -81,15 +138,14 @@ struct CollectStringsVisitor {
 
 impl BinVisitor for CollectStringsVisitor {
     fn visit_type(&mut self, btype: BinType) -> bool {
-        match btype {
+        matches!(btype,
             BinType::String |
-            BinType::List | BinType::List2 |
+            BinType::List |
+            BinType::List2 |
             BinType::Struct |
             BinType::Embed |
             BinType::Option |
-            BinType::Map => true,
-            _ => false,
-        }
+            BinType::Map)
     }
 
     fn visit_string(&mut self, value: &BinString) {

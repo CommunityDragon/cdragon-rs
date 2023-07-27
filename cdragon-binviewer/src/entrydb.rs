@@ -8,7 +8,7 @@ use cdragon_prop::{
     BinEntryPath,
     BinClassName,
     BinHashMappers,
-    compute_binhash,
+    binhash_from_str,
 };
 use crate::Result;
 
@@ -125,7 +125,7 @@ impl EntryDatabase {
             // Use the word looks like a hash, us it as-is, other hash it
             // This won't work if the word is not a hash but looks like it
             let word = &words[0];
-            let hash = Self::hash_from_word(word).unwrap_or_else(|| compute_binhash(word));
+            let hash = binhash_from_str(word);
             if self.entries.contains_key(&BinEntryPath::from(hash)) {
                 let hpath = BinEntryPath::from(hash);
                 return Ok(Box::new(vec![hpath].into_iter()));
@@ -165,18 +165,6 @@ impl EntryDatabase {
             it: self.entries.iter(),
             htype,
         }
-    }
-
-    /// Check if a word is a hash value and reurn it
-    ///
-    /// The has can be surrounded by braces (e.g. `{012345678}`).
-    fn hash_from_word(mut word: &str) -> Option<u32> {
-        if word.len() == 10 && word.starts_with('{') & word.ends_with('}') {
-            word = &word[1..9];
-        } else if word.len() != 8 {
-            return None;
-        }
-        u32::from_str_radix(word, 16).ok()
     }
 
     fn regex_from_words(words: &[&str]) -> Result<RegexSet, EntryDbError> {
