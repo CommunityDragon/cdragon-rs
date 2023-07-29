@@ -397,7 +397,12 @@ mod binview {
         }
 
         fn view_type(&self, _b: &BinViewBuilder) -> Html {
-            format!("CONTAINER({})", basic_bintype_name(self.vtype)).into()
+            html! {
+                <span>
+                    <span class="bin-container-type">{ "list" }</span>
+                    <span class="bin-struct-type">{ basic_bintype_name(self.vtype) }</span>
+                </span>
+            }
         }
     }
 
@@ -431,7 +436,12 @@ mod binview {
         }
 
         fn view_type(&self, b: &BinViewBuilder) -> Html {
-            html! { <span class="bin-struct-type">{ b.format_type_name(self.ctype) }</span> }
+            html! {
+                <span>
+                    <span class="bin-container-type">{ "struct" }</span>
+                    <span class="bin-struct-type">{ b.format_type_name(self.ctype) }</span>
+                </span>
+            }
         }
     }
 
@@ -465,7 +475,12 @@ mod binview {
         }
 
         fn view_type(&self, b: &BinViewBuilder) -> Html {
-            html! { <span class="bin-struct-type">{ b.format_type_name(self.ctype) }</span> }
+            html! {
+                <span>
+                    <span class="bin-container-type">{ "embed" }</span>
+                    <span class="bin-struct-type">{ b.format_type_name(self.ctype) }</span>
+                </span>
+            }
         }
     }
 
@@ -492,7 +507,12 @@ mod binview {
         }
 
         fn view_type(&self, _b: &BinViewBuilder) -> Html {
-            format!("OPTION({})", basic_bintype_name(self.vtype)).into()
+            html! {
+                <span>
+                    <span class="bin-container-type">{ "option" }</span>
+                    <span class="bin-inner-type">{ basic_bintype_name(self.vtype) }</span>
+                </span>
+            }
         }
     }
 
@@ -508,7 +528,14 @@ mod binview {
         }
 
         fn view_type(&self, _b: &BinViewBuilder) -> Html {
-            format!("MAP({},{})", basic_bintype_name(self.ktype), basic_bintype_name(self.vtype)).into()
+            html! {
+                <span>
+                    <span class="bin-container-type">{ "map" }</span>
+                    <span class="bin-inner-type">{ basic_bintype_name(self.ktype) }</span>
+                    <span>{ "," }</span>
+                    <span class="bin-inner-type">{ basic_bintype_name(self.vtype) }</span>
+                </span>
+            }
         }
     }
 

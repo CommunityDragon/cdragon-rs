@@ -94,6 +94,7 @@ a:hover {
 .bin-entry-path { color: #000060; }
 .bin-entry-type { color: #004000; cursor: pointer; }
 .bin-entry-type:hover { color: #009900; }
+.bin-container-type { color: #003000; }
 .bin-struct-type { color: #006000; }
 .bin-field-name { color: #000080; }
 .bin-field-type { color: #006000; }
@@ -116,6 +117,11 @@ a:hover {
 .bin-field-name,
 .bin-field-type {
   margin-right: 0.4em;
+  padding: 0.1em 0.2em;
+  display: inline-block;
+}
+.bin-container-type {
+  margin-right: 0.3em;
   padding: 0.1em 0.2em;
   display: inline-block;
 }
