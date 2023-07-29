@@ -1,6 +1,6 @@
 use std::fmt;
 use std::io::BufRead;
-use std::collections::{HashMap, hash_map};
+use std::collections::HashMap;
 use gloo_console::debug;
 use regex::{RegexSet, RegexSetBuilder};
 use byteorder::{LittleEndian, ReadBytesExt};
@@ -120,51 +120,66 @@ impl EntryDatabase {
     }
 
     /// Run a "smart" search on words
-    pub fn search_words<'a>(&'a self, words: &[&str], mappers: &'a BinHashMappers) -> Result<Box<dyn Iterator<Item = BinEntryPath> + 'a>> {
-        if words.len() == 1 {
-            // Use the word looks like a hash, us it as-is, other hash it
-            // This won't work if the word is not a hash but looks like it
-            let word = &words[0];
-            let hash = binhash_from_str(word);
-            if self.entries.contains_key(&BinEntryPath::from(hash)) {
-                let hpath = BinEntryPath::from(hash);
-                return Ok(Box::new(vec![hpath].into_iter()));
-            }
-            if self.types.contains(&BinClassName::from(hash)) {
-                let htype = BinClassName::from(hash);
-                return Ok(Box::new(self.iter_by_type(htype)));
-            }
-            let word = words[0].to_ascii_lowercase();
-            if word.ends_with(".bin") {
-                // match on whole path components
-                let suffix = format!("/{}", word.to_lowercase());
-                let iter = self.entries.iter()
-                    .filter(move |(_, (_, i))| {
-                        let fname = &self.filenames[*i];
-                        fname == &suffix[1..] || fname.ends_with(&suffix)
-                    }).map(|(h, _)| *h);
-                return Ok(Box::new(iter));
+    pub fn search_words<'a>(&'a self, words: &'a [&str], mappers: &'a BinHashMappers) -> Result<impl Iterator<Item=BinEntryPath> + 'a> {
+        #[derive(Default)]
+        struct MergedCriteria<'a> {
+            entry_paths: Vec<&'a str>,
+            entry_hpaths: Vec<BinEntryPath>,
+            entry_types: Vec<BinClassName>,
+            file_suffixes: Vec<String>,
+            excluded_entry_types: Vec<BinClassName>,
+            excluded_entry_paths: Vec<&'a str>,
+        }
+
+        let mut criterias = MergedCriteria::default();
+        for criteria in words.into_iter().map(|w| self.parse_criteria(w)) {
+            match criteria {
+                SearchCriteria::EntryPath(s) => criterias.entry_paths.push(s),
+                SearchCriteria::EntryPathHash(h) => criterias.entry_hpaths.push(h),
+                SearchCriteria::EntryType(h) => criterias.entry_types.push(h),
+                SearchCriteria::FilePath(s) => {
+                    let mut suffix = format!("/{}", s);
+                    suffix.make_ascii_lowercase();
+                    criterias.file_suffixes.push(suffix);
+                }
+                SearchCriteria::ExcludeEntryType(h) => criterias.excluded_entry_types.push(h),
+                SearchCriteria::ExcludeEntryPath(s) => criterias.excluded_entry_paths.push(s),
             }
         }
 
-        Ok(Box::new(self.search_entries(words, mappers)?))
-    }
+        let regex_include = if criterias.entry_paths.is_empty() {
+            None
+        } else {
+            Some(Self::regex_from_words(&criterias.entry_paths)?)
+        };
+        let regex_exclude = if criterias.excluded_entry_paths.is_empty() {
+            None
+        } else {
+            Some(Self::regex_from_words(&criterias.excluded_entry_paths)?)
+        };
 
-    /// Iterate on entries whose path match all the given words
-    pub fn search_entries<'a>(&'a self, words: &[&str], mappers: &'a BinHashMappers) -> Result<SearchEntryIter<'a>> {
-        Ok(SearchEntryIter {
-            it: self.entries.keys(),
-            regex: Self::regex_from_words(words)?,
-            hmappers: &mappers,
-        })
+        let it = self.entries.iter()
+            .filter(move |(hpath, (htype, findex))| {
+                let file = &self.filenames[*findex];
+                // Don't bother too much using a "smart" filtering
+                // Keep in my that results are "truncated". 
+                (criterias.entry_types.is_empty() || criterias.entry_types.contains(htype)) &&
+                !criterias.excluded_entry_types.contains(htype) &&
+                (criterias.entry_hpaths.is_empty() || criterias.entry_hpaths.contains(hpath)) &&
+                (criterias.file_suffixes.is_empty() || criterias.file_suffixes.iter().any(|suffix| {
+                    file == &suffix[1..] || file.ends_with(suffix)
+                })) &&
+                regex_include.as_ref().map(|re| hpath.get_str(mappers).map(|s| re.is_match(s)).unwrap_or(false)).unwrap_or(true) &&
+                !regex_exclude.as_ref().map(|re| hpath.get_str(mappers).map(|s| re.is_match(s)).unwrap_or(false)).unwrap_or(false)
+            }).map(|(hpath, _)| *hpath);
+        Ok(it)
     }
 
     /// Iterate on entries that use the given type
-    pub fn iter_by_type<'a>(&'a self, htype: BinClassName) -> ByTypeIter<'a> {
-        ByTypeIter {
-            it: self.entries.iter(),
-            htype,
-        }
+    pub fn iter_by_type(&self, htype: BinClassName) -> impl Iterator<Item=BinEntryPath> + '_ {
+        self.entries.iter()
+            .filter(move |(_, (t, _))| *t == htype)
+            .map(|(k, _)| *k)
     }
 
     fn regex_from_words(words: &[&str]) -> Result<RegexSet, EntryDbError> {
@@ -175,51 +190,37 @@ impl EntryDatabase {
             .build()
             .map_err(|e| EntryDbError::InvalidSearchPattern(e))
     }
-}
 
-
-pub struct SearchEntryIter<'a> {
-    it: hash_map::Keys<'a, BinEntryPath, (BinClassName, usize)>,
-    regex: RegexSet,
-    hmappers: &'a BinHashMappers,
-}
-
-impl<'a> Iterator for SearchEntryIter<'a> {
-    type Item = BinEntryPath;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let n = self.regex.len();
-        loop {
-            match self.it.next() {
-                None => return None,
-                Some(v) => match v.get_str(self.hmappers) {
-                    Some(path) if self.regex.matches(path).into_iter().count() == n => {
-                        return Some(*v)
-                    }
-                    None | Some(_) => {}
-                }
+    fn parse_criteria<'a>(&'a self, word: &'a str) -> SearchCriteria<'a> {
+        if word.starts_with('-') {
+            let hash = binhash_from_str(&word[1..]);
+            if self.types.contains(&hash.into()) {
+                SearchCriteria::ExcludeEntryType(hash.into())
+            } else {
+                SearchCriteria::ExcludeEntryPath(&word[1..])
+            }
+        } else {
+            let hash = binhash_from_str(word);
+            if self.entries.contains_key(&hash.into()) {
+                SearchCriteria::EntryPathHash(hash.into())
+            } else if self.types.contains(&hash.into()) {
+                SearchCriteria::EntryType(hash.into())
+            } else if word.ends_with(".bin") {
+                SearchCriteria::FilePath(word)
+            } else {
+                SearchCriteria::EntryPath(word)
             }
         }
     }
 }
 
 
-pub struct ByTypeIter<'a> {
-    it: hash_map::Iter<'a, BinEntryPath, (BinClassName, usize)>,
-    htype: BinClassName,
-}
-
-impl<'a> Iterator for ByTypeIter<'a> {
-    type Item = BinEntryPath;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            match self.it.next() {
-                None => return None,
-                Some((k, (t, _))) if *t == self.htype => return Some(*k),
-                Some(_) => {}
-            };
-        }
-    }
+enum SearchCriteria<'a> {
+    EntryPath(&'a str),
+    EntryPathHash(BinEntryPath),
+    EntryType(BinClassName),
+    FilePath(&'a str),
+    ExcludeEntryType(BinClassName),
+    ExcludeEntryPath(&'a str),
 }
 
