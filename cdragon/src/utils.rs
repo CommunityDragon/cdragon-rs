@@ -4,6 +4,12 @@ use std::hash::Hash;
 use std::path::{Path, PathBuf};
 use num_traits::Num;
 use walkdir::{WalkDir, DirEntry};
+use cdragon_prop::{
+    BinTraversal,
+    BinVisitor,
+    PropError,
+    PropFile,
+};
 use cdragon_utils::hashes::HashMapper;
 
 
@@ -131,4 +137,19 @@ pub fn bin_files_from_dir<P: AsRef<Path>>(root: P) -> impl Iterator<Item=PathBuf
         .filter_map(|e| canonicalize_path(&e.into_path()).ok())
 }
 
+
+/// Trait to visit a directory using a BinVisitor
+pub trait BinDirectoryVisitor: BinVisitor + Sized {
+    fn visit_dir<P: AsRef<Path>>(mut self, root: P) -> Result<Self, PropError> {
+        for path in bin_files_from_dir(root) {
+            let scanner = PropFile::scan_entries_from_path(path)?;
+            for entry in scanner.parse() {
+                entry?.traverse_bin(&mut self);
+            }
+        }
+        Ok(self)
+    }
+}
+
+impl<T> BinDirectoryVisitor for T where T: BinVisitor {}
 

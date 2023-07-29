@@ -4,7 +4,10 @@ use super::{
     BinHashMappers,
     compute_binhash,
 };
-use cdragon_utils::declare_hash_type;
+use cdragon_utils::{
+    hashes::HashOrStr,
+    declare_hash_type,
+};
 
 
 /// Field value for a struct or an embed
@@ -68,6 +71,12 @@ macro_rules! declare_bin_hash {
             const KIND: BinHashKind = $kind;
             pub fn get_str<'a>(&self, mapper: &'a BinHashMappers) -> Option<&'a str> {
                 mapper.get(Self::KIND).get(self.hash)
+            }
+            pub fn try_str<'a>(&self, mapper: &'a BinHashMappers) -> HashOrStr<u32, &'a str> {
+                match self.get_str(mapper) {
+                    Some(s) => HashOrStr::Str(s),
+                    None => HashOrStr::Hash(self.hash),
+                }
             }
         }
     }

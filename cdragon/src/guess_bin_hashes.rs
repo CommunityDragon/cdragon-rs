@@ -183,17 +183,19 @@ impl BinHashGuesser {
     }
 
     //TODO
-    // - Items: for `ItemGroups`, entry path and `mItemGroupID` are linked
-    // - HudGameModeScoreData.mModeKeyName => "UX/HUD/Globals/ScoreData_{}"
-    //      not the mModeKeyName but definitely something
-    // - GameModeMapData parsing
-    // - ItemShopGameModeData contains item maps, hashes are paths to ItemData
-    // - Trophies
-    //   - pattern: Loadouts/SummonerTrophies/Trophies/%cup%/Trophy_%gem%
-    //   - %cup%: probably listed somewhere, or retrieved from other entries
-    //   - %gem%: 4 8 16
-    // - Pedestal
-    //   - pattern: Loadouts/SummonerTrophies/Pedestals/%pedestal%
+    // GameModeMapData parsing
+    // - Format is `Maps/Shipping/{map}/Modes/{mModeName}`
+    // - ... but the map has to be iterated
+    // Trophies
+    // - pattern: Loadouts/SummonerTrophies/Trophies/%cup%/Trophy_%gem%
+    // - %cup%: probably listed somewhere, or retrieved from other entries
+    // - %gem%: 4 8 16
+    // Pedestal
+    // - pattern: Loadouts/SummonerTrophies/Pedestals/%pedestal%
+    // Lots of hashes that are actually entries
+    // - List the matches to detect fields
+    // - Use full hash for all `*ViewController` types, and UI elements
+    // - ContextualConditionCharacterName
 
     /// Add all known hooks
     #[allow(dead_code)]
@@ -258,7 +260,7 @@ impl BinHashGuesser {
 
         // Many types have their path in the `name` field
         // We could also check `name` in all cases but that would require to parse ALL entries.
-        const NAMED_TYPES: [BinClassName; 29] = [
+        const NAMED_TYPES: [BinClassName; 30] = [
             binh!(BinClassName, "StaticMaterialDef"),
             binh!(BinClassName, "UISceneData"),
             binh!(BinClassName, "UiElementGroupButtonData"),
@@ -276,6 +278,7 @@ impl BinHashGuesser {
             BinClassName { hash: 0x9b4cc4fd },
             BinClassName { hash: 0xa742684a },
             BinClassName { hash: 0xa7ec17a8 },
+            BinClassName { hash: 0xb1e9be66 },
             BinClassName { hash: 0xb6d4a0f9 },
             BinClassName { hash: 0xc209ee16 },
             BinClassName { hash: 0xc3e489da },
@@ -319,13 +322,18 @@ impl BinHashGuesser {
             binh!(BinClassName, "GlobalResourceResolver"),
         ];
 
-        fn guess_map_key_from_link_value_basename(map: &BinMap, finder: &mut BinHashFinder) {
+        /// Guess a hash key from a link value, check full path or basename
+        fn guess_map_key_from_link_value(map: &BinMap, finder: &mut BinHashFinder) {
             if let Some(map) = &binget!(map => (BinHash, BinLink)) {
                 for (k, v) in map.iter() {
                     if finder.is_unknown(BinHashKind::HashValue, k.0.hash) {
                         if let Some(target) = finder.get_str(BinHashKind::EntryPath, v.0.hash) {
-                            if let Some((_, base)) = target.rsplit_once('/') {
-                                finder.check_one(BinHashKind::HashValue, k.0.hash, base.to_owned());
+                            println!("check {}", target);
+                            let target = target.to_owned();
+                            if finder.check_one(BinHashKind::HashValue, k.0.hash, &target) {
+                                // found
+                            } else if let Some((_, base)) = target.rsplit_once('/') {
+                                finder.check_one(BinHashKind::HashValue, k.0.hash, base);
                             }
                         }
                     }
@@ -340,7 +348,7 @@ impl BinHashGuesser {
                 // - 'Particles' paths are already guessed
                 // - Some entries don't exist at all
                 if let Some(map) = &binget!(entry => resourceMap(BinMap)) {
-                    guess_map_key_from_link_value_basename(map, finder);
+                    guess_map_key_from_link_value(map, finder);
 
                     /*
                     // Guess value from key (append to entry's prefix)
@@ -439,7 +447,7 @@ impl BinHashGuesser {
             // Guess MapContainer.chunks keys from values
             .with_single_hook(binh!("MapContainer"), |entry, finder| {
                 if let Some(map) = &binget!(entry => chunks(BinMap)) {
-                    guess_map_key_from_link_value_basename(map, finder);
+                    guess_map_key_from_link_value(map, finder);
                 }
             })
 
@@ -491,7 +499,7 @@ impl BinHashGuesser {
     /// Add hooks that use collected entry types
     pub fn with_collecting_hooks(self) -> Self {
         self
-            .with_hook(Box::new(ItemShopHashesHook::default()))
+            .with_hook(Box::new(ItemHashListsHook::default()))
     }
 
     /// End guessing, return the updated finder
@@ -522,30 +530,6 @@ impl BinHashGuesser {
     }
 
     /*TODO
-    /// Guess hashes from character name (case insensitive)
-    pub fn guess_from_character(&mut self, name: &str) -> Result<(), PropError> {
-        ...
-
-        // Check animations
-        for direntry in Self::walk_bins(WalkDir::new(path.join("animations")).max_depth(1)) {
-            let mut skin_name = direntry.path().file_stem().unwrap().to_str().unwrap().to_owned();
-            if let Some(s) = skin_name.get_mut(0..1) {
-                s.make_ascii_uppercase();
-            }
-            let prefix = format!("{}/Animations/{}", prefix, skin_name);
-
-            self.finder.check(BinHashKind::EntryPath, prefix);
-
-            //TODO Guess `mClipDataMap` keys from `.anm` paths (`{character}_{key}`)
-        }
-
-        Ok(())
-    }
-
-
-        Ok(())
-    }
-
     pub fn guess_from_summoner_trophies(&mut self) -> Result<(), PropError> {
         // Formats given in `{89e3706b}.mGDSObjectPathTemplates`
         for entry in PropFile::from_path(self.root.join("global/loadouts/summonertrophies.bin"))?.entries {
@@ -724,40 +708,39 @@ fn on_skin_character_data_entry(entry: &BinEntry, finder: &mut BinHashFinder) {
     }
 }
 
-/// Guess item hashes in ItemShopGameModeData
+/// Guess lists of item hashes
 #[derive(Default)]
-pub struct ItemShopHashesHook {
+pub struct ItemHashListsHook {
     hashes: HashSet<u32>,
 }
 
-impl ItemShopHashesHook {
-    fn extend_with_list(&mut self, field: &BinList) {
-        if let Some(list) = binget!(field => (BinHash)) {
-            self.hashes.extend(list.iter().map(|v| v.0.hash));
+impl ItemHashListsHook {
+    fn extend_with_list(&mut self, field: Option<&BinList>) {
+        if let Some(field) = field {
+            if let Some(list) = binget!(field => (BinHash)) {
+                self.hashes.extend(list.iter().map(|v| v.0.hash));
+            }
         }
     }
 }
 
-impl GuessingHook for ItemShopHashesHook {
+impl GuessingHook for ItemHashListsHook {
     fn entry_types(&self) -> &[BinClassName] {
-        const TYPES: [BinClassName; 1] = [
+        const TYPES: [BinClassName; 2] = [
             binh!(BinClassName, "ItemShopGameModeData"),
+            binh!(BinClassName, "GameModeItemList"),
         ];
         &TYPES
     }
 
     fn on_entry(&mut self, entry: &BinEntry, _finder: &mut BinHashFinder) {
-        if let Some(list) = binget!(entry => 0xc561f8e9(BinList)) {
-            self.extend_with_list(list);
-        }
-        if let Some(list) = binget!(entry => 0x37792a41(BinList)) {
-            self.extend_with_list(list);
-        }
-        if let Some(list) = binget!(entry => CompletedItems(BinList)) {
-            self.extend_with_list(list);
-        }
-        if let Some(list) = binget!(entry => 0x891a5676(BinStruct).items(BinList)) {
-            self.extend_with_list(list);
+        if entry.ctype == binh!("ItemShopGameModeData") {
+            self.extend_with_list(binget!(entry => 0xc561f8e9(BinList)));
+            self.extend_with_list(binget!(entry => 0x37792a41(BinList)));
+            self.extend_with_list(binget!(entry => CompletedItems(BinList)));
+            self.extend_with_list(binget!(entry => 0x891a5676(BinStruct).items(BinList)));
+        } else if entry.ctype == binh!("GameModeItemList") {
+            self.extend_with_list(binget!(entry => mItems(BinList)));
         }
     }
 

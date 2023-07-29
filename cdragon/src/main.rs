@@ -32,10 +32,16 @@ mod utils;
 use utils::{
     PathPattern,
     HashValuePattern,
+    BinDirectoryVisitor,
     bin_files_from_dir,
 };
 
 mod bin_hashes;
+use bin_hashes::{
+    CollectHashesVisitor,
+    CollectStringsVisitor,
+    HashesMatchingEntriesVisitor,
+};
 mod guess_bin_hashes;
 use guess_bin_hashes::{
     BinHashFinder,
@@ -399,7 +405,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     BinHashMappers::from_dirpath(Path::new(dir))?
                 };
 
-                let mut hashes = bin_hashes::collect_unknown_from_dir(path)?;
+                let mut hashes = CollectHashesVisitor::default()
+                    .visit_dir(path)?
+                    .hashes;
                 bin_hashes::remove_known_from_unknown(&mut hashes, &hmappers);
 
                 let output = subm.get_one::<PathBuf>("output").unwrap();
@@ -440,7 +448,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 } else {
                     // Collect unknown hashes
                     println!("Collecting unknown hashes...");
-                    bin_hashes::collect_unknown_from_dir(path)?
+                    CollectHashesVisitor::default()
+                        .visit_dir(path)?
+                        .hashes
                 };
                 bin_hashes::remove_known_from_unknown(&mut hashes, &hmappers);
 
@@ -476,10 +486,39 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             })
             .runner(|subm| {
                 let path = subm.get_one::<PathBuf>("input").unwrap();
-                let strings = bin_hashes::collect_strings_from_dir(path)?;
+                let strings = CollectStringsVisitor::default()
+                    .visit_dir(path)?
+                    .strings;
                 for s in strings {
                     println!("{}", s);
                 }
+                Ok(())
+            })
+            )
+        .add_nested(
+            NestedCommand::new("hashes-matching-entries")
+            .options(|app| {
+                app
+                    .about("Print (partial) information on hash values matching entry paths")
+                    .arg(Arg::new("input")
+                         .value_name("bin")
+                         .required(true)
+                         .value_parser(value_parser!(PathBuf))
+                         .help("Directory with `.bin` files to scan"))
+                    .arg(Arg::new("hashes")
+                         .short('H')
+                         .value_name("dir")
+                         .required(true)
+                         .value_parser(value_parser!(PathBuf))
+                         .help("Directory with known hash lists"))
+            })
+            .runner(|subm| {
+                let path = subm.get_one::<PathBuf>("input").unwrap();
+                let hmappers = {
+                    let dir = subm.get_one::<PathBuf>("hashes").unwrap();
+                    BinHashMappers::from_dirpath(Path::new(dir))?
+                };
+                HashesMatchingEntriesVisitor::new(&hmappers).visit_dir(path)?;
                 Ok(())
             })
             )

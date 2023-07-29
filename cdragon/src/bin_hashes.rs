@@ -6,18 +6,14 @@ use cdragon_prop::{
     BinEntry,
     BinHashMappers,
     BinHashSets,
-    BinTraversal,
     BinVisitor,
-    PropError,
-    PropFile,
     data::*,
 };
 use cdragon_utils::hashes::HashError;
-use super::bin_files_from_dir;
 
 #[derive(Default)]
-struct CollectHashesVisitor {
-    hashes: BinHashSets,
+pub struct CollectHashesVisitor {
+    pub hashes: BinHashSets,
 }
 
 impl BinVisitor for CollectHashesVisitor {
@@ -63,18 +59,6 @@ impl BinVisitor for CollectHashesVisitor {
     fn visit_link(&mut self, value: &BinLink) {
         self.hashes.entry_path.insert(value.0.hash);
     }
-}
-
-/// Collect hashes from a directory
-pub fn collect_unknown_from_dir<P: AsRef<Path>>(root: P) -> Result<BinHashSets, PropError> {
-    let mut visitor = CollectHashesVisitor::default();
-    for path in bin_files_from_dir(root) {
-        let scanner = PropFile::scan_entries_from_path(path)?;
-        for entry in scanner.parse() {
-            entry?.traverse_bin(&mut visitor);
-        }
-    }
-    Ok(visitor.hashes)
 }
 
 fn unknown_path(kind: BinHashKind) -> &'static str {
@@ -132,8 +116,8 @@ pub fn remove_known_from_unknown(unknown: &mut BinHashSets, hmappers: &BinHashMa
 
 
 #[derive(Default)]
-struct CollectStringsVisitor {
-    strings: HashSet<String>,
+pub struct CollectStringsVisitor {
+    pub strings: HashSet<String>,
 }
 
 impl BinVisitor for CollectStringsVisitor {
@@ -155,15 +139,60 @@ impl BinVisitor for CollectStringsVisitor {
     }
 }
 
-/// Collect strings from a directory
-pub fn collect_strings_from_dir<P: AsRef<Path>>(root: P) -> Result<HashSet<String>, PropError> {
-    let mut visitor = CollectStringsVisitor::default();
-    for path in bin_files_from_dir(root) {
-        let scanner = PropFile::scan_entries_from_path(path)?;
-        for entry in scanner.parse() {
-            entry?.traverse_bin(&mut visitor);
+
+pub struct HashesMatchingEntriesVisitor<'a> {
+    mappers: &'a BinHashMappers,
+    types_seen: HashSet<BinClassName>,
+    hashes_seen: HashSet<BinHashValue>,
+    current_entry: Option<(BinEntryPath, BinClassName)>,
+}
+
+impl<'a> HashesMatchingEntriesVisitor<'a> {
+    pub fn new(mappers: &'a BinHashMappers) -> Self {
+        Self {
+            mappers,
+            types_seen: HashSet::default(),
+            hashes_seen: HashSet::default(),
+            current_entry: None,
         }
     }
-    Ok(visitor.strings)
+}
+
+impl<'a> BinVisitor for HashesMatchingEntriesVisitor<'a> {
+    fn visit_type(&mut self, btype: BinType) -> bool {
+        self.current_entry.is_some() &&
+        matches!(btype,
+            BinType::Hash |
+            BinType::List |
+            BinType::List2 |
+            BinType::Struct |
+            BinType::Embed |
+            BinType::Option |
+            BinType::Map)
+    }
+
+    fn visit_entry(&mut self, value: &BinEntry) -> bool {
+        // Note: each type is checked only once
+        // Even if the first entry does not cover all uses of hashes
+        if self.types_seen.insert(value.ctype) {
+            self.current_entry = Some((value.path, value.ctype));
+            self.hashes_seen.clear();
+            true
+        } else {
+            false
+        }
+    }
+
+    fn visit_hash(&mut self, value: &BinHash) {
+        if self.hashes_seen.insert(value.0) {
+            if !self.mappers.hash_value.is_known(value.0.hash) && self.mappers.entry_path.is_known(value.0.hash) {
+                let (path, htype) = self.current_entry.unwrap();
+                println!("type {} , path {} , hash {:x}",
+                    htype.try_str(self.mappers),
+                    path.try_str(self.mappers),
+                    value.0);
+            }
+        }
+    }
 }
 
