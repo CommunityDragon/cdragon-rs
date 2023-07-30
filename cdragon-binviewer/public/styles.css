@@ -116,13 +116,13 @@ a:hover {
 .bin-struct-type,
 .bin-field-name,
 .bin-field-type {
-  margin-right: 0.4em;
-  padding: 0.1em 0.2em;
+  margin-right: 0.2em;
+  padding: 0.1em 0.1em;
   display: inline-block;
 }
 .bin-container-type {
-  margin-right: 0.3em;
-  padding: 0.1em 0.2em;
+  margin-right: 0.2em;
+  padding: 0.1em 0.1em;
   display: inline-block;
 }
 

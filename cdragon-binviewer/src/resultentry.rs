@@ -119,6 +119,7 @@ impl Component for ResultEntry {
                         <span class="bin-entry-path">
                             { b.format_entry_path(props.hpath) }
                         </span>
+                        {" "}
                         <span class="bin-entry-type"
                               onclick={on_type_click}>
                             { b.format_type_name(props.htype) }
@@ -304,13 +305,13 @@ mod binview {
             (html! {
                 <div class={classes!("bin-field-header", "bin-item-header")}
                      onclick={Callback::from(header_toggle_collapse)}>
-                    { fname } { ftype }
+                    { fname }{" "}{ ftype }
                 </div>
             }, v_value)
         } else {
             (html! {
                 <div class={classes!("bin-field-header", "bin-item-leaf")}>
-                    { fname } { ftype } { v_value }
+                    { fname }{" "}{ ftype }{" "}{ v_value }
                 </div>
             }, html! {})
         };
@@ -318,7 +319,7 @@ mod binview {
         html! {
             <li>
                 <div class="bin-field">
-                    { v_header } { v_value }
+                    { v_header }{" "}{ v_value }
                 </div>
             </li>
         }
@@ -400,6 +401,7 @@ mod binview {
             html! {
                 <span>
                     <span class="bin-container-type">{ "list" }</span>
+                    {" "}
                     <span class="bin-struct-type">{ basic_bintype_name(self.vtype) }</span>
                 </span>
             }
@@ -439,6 +441,7 @@ mod binview {
             html! {
                 <span>
                     <span class="bin-container-type">{ "struct" }</span>
+                    {" "}
                     <span class="bin-struct-type">{ b.format_type_name(self.ctype) }</span>
                 </span>
             }
@@ -478,6 +481,7 @@ mod binview {
             html! {
                 <span>
                     <span class="bin-container-type">{ "embed" }</span>
+                    {" "}
                     <span class="bin-struct-type">{ b.format_type_name(self.ctype) }</span>
                 </span>
             }
@@ -510,6 +514,7 @@ mod binview {
             html! {
                 <span>
                     <span class="bin-container-type">{ "option" }</span>
+                    {" "}
                     <span class="bin-inner-type">{ basic_bintype_name(self.vtype) }</span>
                 </span>
             }
@@ -531,6 +536,7 @@ mod binview {
             html! {
                 <span>
                     <span class="bin-container-type">{ "map" }</span>
+                    {" "}
                     <span class="bin-inner-type">{ basic_bintype_name(self.ktype) }</span>
                     <span>{ "," }</span>
                     <span class="bin-inner-type">{ basic_bintype_name(self.vtype) }</span>
