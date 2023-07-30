@@ -191,6 +191,7 @@ impl EntryDatabase {
             .map_err(|e| EntryDbError::InvalidSearchPattern(e))
     }
 
+    /// Parse a search criteria, using database information to resolve hashes
     fn parse_criteria<'a>(&'a self, word: &'a str) -> SearchCriteria<'a> {
         if word.starts_with('-') {
             let hash = binhash_from_str(&word[1..]);
@@ -215,6 +216,7 @@ impl EntryDatabase {
 }
 
 
+/// Search criteria, parsed
 enum SearchCriteria<'a> {
     EntryPath(&'a str),
     EntryPathHash(BinEntryPath),

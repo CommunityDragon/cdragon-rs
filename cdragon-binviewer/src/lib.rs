@@ -26,15 +26,13 @@ type Result<T, E = Box<dyn std::error::Error>> = std::result::Result<T, E>;
 #[derive(Clone, Default)]
 pub struct AppState {
     services: Rc<Services>,
-    goto_entry: Callback<BinEntryPath>,
-    filter_entry_type: Callback<BinClassName>,
+    messaging: Callback<Msg>,
 }
 
 impl PartialEq for AppState {
     fn eq(&self, other: &Self) -> bool {
         Rc::ptr_eq(&self.services, &other.services) &&
-        self.goto_entry.eq(&other.goto_entry) &&
-        self.filter_entry_type.eq(&other.filter_entry_type)
+        self.messaging.eq(&other.messaging)
     }
 }
 
@@ -83,8 +81,7 @@ impl Component for App {
 
         let state = Rc::new(AppState {
             services: Default::default(),
-            goto_entry: ctx.link().callback(Msg::GoToEntry),
-            filter_entry_type: ctx.link().callback(Msg::FilterEntryType),
+            messaging: ctx.link().callback(std::convert::identity),
         });
 
         App { state, ..Default::default() }

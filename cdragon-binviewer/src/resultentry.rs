@@ -9,7 +9,10 @@ use cdragon_prop::{
     BinEntry,
 };
 use binview::{BinViewBuilder, view_binfield};
-use super::AppState;
+use super::{
+    AppState,
+    Msg as AppMsg,
+};
 
 
 #[derive(Default)]
@@ -109,7 +112,7 @@ impl Component for ResultEntry {
         let onclick_htype = props.htype.clone();
 
         let on_header_click = ctx.link().callback(|_| Msg::ToggleCollapse);
-        let on_type_click = self.state.filter_entry_type.reform(move |_| onclick_htype);
+        let on_type_click = self.state.messaging.reform(move |_| AppMsg::FilterEntryType(onclick_htype));
 
         html! {
             <li>
@@ -188,7 +191,7 @@ mod binview {
     use web_sys::Element;
     use wasm_bindgen::JsCast;
     use cdragon_prop::*;
-    use super::AppState;
+    use super::{AppState, AppMsg};
     use crate::settings;
 
     /// Toggle a header's `collapsed` class, to be used in callbacks
@@ -490,7 +493,7 @@ mod binview {
 
     impl_viewable!(BinLink, BinType::Link, (this, state, b) => {
         let path = this.0;
-        let onclick = state.goto_entry.reform(move |_| path);
+        let onclick = state.messaging.reform(move |_| AppMsg::GoToEntry(path));
         html! {
             <span class="bin-link-value" {onclick}>{ b.format_entry_path(path) }</span>
         }
