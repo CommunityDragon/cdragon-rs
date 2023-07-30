@@ -1,14 +1,16 @@
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
-use clap::{Arg, ArgAction, value_parser};
+use clap::{Arg, ArgAction, ArgGroup, value_parser};
 
 use cdragon_prop::{
     PropFile,
     data::{BinEntryPath, BinClassName},
+    BinEntry,
     BinHashMappers,
     BinSerializer,
     BinEntriesSerializer,
+    BinVisitor,
     TextTreeSerializer,
     JsonSerializer,
     binhash_from_str,
@@ -41,6 +43,7 @@ use bin_hashes::{
     CollectHashesVisitor,
     CollectStringsVisitor,
     HashesMatchingEntriesVisitor,
+    SearchBinValueVisitor,
 };
 mod guess_bin_hashes;
 use guess_bin_hashes::{
@@ -73,8 +76,29 @@ fn wad_and_hmapper_from_paths(wad_path: &Path, hashes_dir: Option<&PathBuf>) -> 
     Ok((wad, hmapper))
 }
 
+/// Create bin entry serializer
+fn build_bin_entry_serializer<'a, W: io::Write>(writer: &'a mut W, hmappers: &'a BinHashMappers, json: bool) -> io::Result<Box<dyn BinEntriesSerializer + 'a>> {
+    if json {
+        Ok(Box::new(JsonSerializer::new(writer, &hmappers).write_entries()?))
+    } else {
+        Ok(Box::new(TextTreeSerializer::new(writer, &hmappers).write_entries()?))
+    }
+}
+
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Common arguments
+    let arg_hashes_dir = Arg::new("hashes")
+        .short('H')
+        .value_name("dir")
+        .value_parser(value_parser!(PathBuf))
+        .help("Directory with lists of known hashes");
+    let arg_bin_dir = Arg::new("input")
+        .value_name("bin")
+        .value_parser(value_parser!(PathBuf))
+        .required(true)
+        .help("Directory with `.bin` files to scan");
+
     let cmd = NestedCommand::new("cdragon")
         .options(|app| {
             app
@@ -102,6 +126,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .arg(Arg::new("hashes")
                          .short('H')
                          .value_name("dir")
+                         .value_parser(value_parser!(PathBuf))
                          .help("Directory with hash lists"))
                     .arg(Arg::new("json")
                          .short('j')
@@ -113,17 +138,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                          .help("Dump only entries with the given type"))
             })
             .runner(|subm| {
-                let hmappers = match subm.get_one::<String>("hashes") {
+                let hmappers = match subm.get_one::<PathBuf>("hashes") {
                     Some(dir) => BinHashMappers::from_dirpath(Path::new(dir))?,
                     _ => BinHashMappers::default(),
                 };
 
                 let mut writer = io::BufWriter::new(io::stdout());
-                let mut serializer = if subm.get_flag("json") {
-                    Box::new(JsonSerializer::new(&mut writer, &hmappers).write_entries()?) as Box<dyn BinEntriesSerializer>
-                } else {
-                    Box::new(TextTreeSerializer::new(&mut writer, &hmappers).write_entries()?) as Box<dyn BinEntriesSerializer>
-                };
+                let mut serializer = build_bin_entry_serializer(&mut writer, &hmappers, subm.get_flag("json"))?;
                 let filter: Box<dyn Fn(BinEntryPath, BinClassName) -> bool> = match subm.get_one::<String>("entry-type") {
                     Some(s) => {
                         let ctype: BinClassName = binhash_from_str(s).into();
@@ -283,11 +304,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                          .required(true)
                          .value_parser(value_parser!(PathBuf))
                          .help("WAD file to parse"))
-                    .arg(Arg::new("hashes")
-                         .short('H')
-                         .value_name("dir")
-                         .value_parser(value_parser!(PathBuf))
-                         .help("Directory with hash list"))
+                    .arg(arg_hashes_dir.clone())
             })
             .runner(|subm| {
                 let (wad, hmapper) = wad_and_hmapper_from_paths(subm.get_one::<PathBuf>("wad").unwrap(), subm.get_one::<PathBuf>("hashes"))?;
@@ -319,11 +336,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                          .value_name("subdir")
                          .value_parser(value_parser!(PathBuf))
                          .help("Output unknown files to given subdirectory (empty to not output them)"))
-                    .arg(Arg::new("hashes")
-                         .short('H')
-                         .value_name("dir")
-                         .value_parser(value_parser!(PathBuf))
-                         .help("Directory with hash list"))
+                    .arg(arg_hashes_dir.clone())
                     .arg(Arg::new("patterns")
                          .num_args(0..)
                          .help("Hashes or paths of files to download, `*` wildcards are supported for paths"))
@@ -380,17 +393,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .options(|app| {
                 app
                     .about("Collect unknown hashes from BIN files")
-                    .arg(Arg::new("input")
-                         .value_name("bin")
-                         .required(true)
-                         .value_parser(value_parser!(PathBuf))
-                         .help("Directory with `.bin` files to scan"))
-                    .arg(Arg::new("hashes")
-                         .short('H')
-                         .value_name("dir")
-                         .required(true)
-                         .value_parser(value_parser!(PathBuf))
-                         .help("Directory with known hash lists"))
+                    .arg(arg_bin_dir.clone())
+                    .arg(arg_hashes_dir.clone().required(true))
                     .arg(Arg::new("output")
                          .short('o')
                          .value_name("dir")
@@ -406,8 +410,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 };
 
                 let mut hashes = CollectHashesVisitor::default()
-                    .visit_dir(path)?
-                    .hashes;
+                    .traverse_dir(path)?
+                    .take_result();
                 bin_hashes::remove_known_from_unknown(&mut hashes, &hmappers);
 
                 let output = subm.get_one::<PathBuf>("output").unwrap();
@@ -421,17 +425,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .options(|app| {
                 app
                     .about("Guess unknown hashes from BIN files")
-                    .arg(Arg::new("input")
-                         .value_name("bin")
-                         .required(true)
-                         .value_parser(value_parser!(PathBuf))
-                         .help("Directory with `.bin` files to scan"))
-                    .arg(Arg::new("hashes")
-                         .short('H')
-                         .value_name("dir")
-                         .required(true)
-                         .value_parser(value_parser!(PathBuf))
-                         .help("Directory with known hash lists"))
+                    .arg(arg_bin_dir.clone())
+                    .arg(arg_hashes_dir.clone().required(true))
                     .arg(Arg::new("unknown")
                          .short('u')
                          .value_name("dir")
@@ -449,8 +444,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     // Collect unknown hashes
                     println!("Collecting unknown hashes...");
                     CollectHashesVisitor::default()
-                        .visit_dir(path)?
-                        .hashes
+                        .traverse_dir(path)?
+                        .take_result()
                 };
                 bin_hashes::remove_known_from_unknown(&mut hashes, &hmappers);
 
@@ -478,20 +473,67 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .options(|app| {
                 app
                     .about("Collect strings BIN files")
-                    .arg(Arg::new("input")
-                         .value_name("bin")
-                         .required(true)
-                         .value_parser(value_parser!(PathBuf))
-                         .help("Directory with `.bin` files to scan"))
+                    .arg(arg_bin_dir.clone())
             })
             .runner(|subm| {
                 let path = subm.get_one::<PathBuf>("input").unwrap();
                 let strings = CollectStringsVisitor::default()
-                    .visit_dir(path)?
-                    .strings;
+                    .traverse_dir(path)?
+                    .take_result();
                 for s in strings {
                     println!("{}", s);
                 }
+                Ok(())
+            })
+            )
+        .add_nested(
+            NestedCommand::new("search-entries")
+            .options(|app| {
+                app
+                    .about("Dump BIN entries containing the provided string")
+                    .arg(arg_bin_dir.clone())
+                    .arg(arg_hashes_dir.clone().required(true))
+                    .arg(Arg::new("pattern")
+                         .required(true)
+                         .help("Value to search for (exact match)"))
+                    .arg(Arg::new("string").short('s').action(ArgAction::SetTrue))
+                    .arg(Arg::new("hash").short('a').action(ArgAction::SetTrue))
+                    .arg(Arg::new("link").short('l').action(ArgAction::SetTrue))
+                    .group(ArgGroup::new("type")
+                        .required(true)
+                        .args(["string", "hash", "link"]))
+                    .arg(Arg::new("json")
+                         .short('j')
+                         .action(ArgAction::SetTrue)
+                         .help("Dump as JSON"))
+            })
+            .runner(|subm| {
+                let path = subm.get_one::<PathBuf>("input").unwrap();
+                let pattern = subm.get_one::<String>("pattern").unwrap();
+                let hdir = Path::new(subm.get_one::<PathBuf>("hashes").unwrap());
+                let hmappers = BinHashMappers::from_dirpath(hdir)?;
+
+                let mut writer = io::BufWriter::new(io::stdout());
+                let mut serializer = build_bin_entry_serializer(&mut writer, &hmappers, subm.get_flag("json"))?;
+                {
+                    let serializer = &mut serializer;
+                    let on_match = move |entry: &BinEntry| { serializer.write_entry(entry).unwrap(); };
+
+                    use cdragon_prop::data::*;
+                    let mut visitor: Box<dyn BinVisitor> = if subm.get_flag("string") {
+                        Box::new(SearchBinValueVisitor::new(BinString(pattern.clone()), on_match))
+                    } else if subm.get_flag("hash") {
+                        let hash: BinHashValue = binhash_from_str(pattern).into();
+                        Box::new(SearchBinValueVisitor::new(BinHash(hash), on_match))
+                    } else if subm.get_flag("link") {
+                        let hash: BinEntryPath = binhash_from_str(pattern).into();
+                        Box::new(SearchBinValueVisitor::new(BinLink(hash), on_match))
+                    } else {
+                        unreachable!();
+                    };
+                    visitor.traverse_dir(path)?;
+                }
+                serializer.end()?;
                 Ok(())
             })
             )
@@ -500,17 +542,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .options(|app| {
                 app
                     .about("Print (partial) information on hash values matching entry paths")
-                    .arg(Arg::new("input")
-                         .value_name("bin")
-                         .required(true)
-                         .value_parser(value_parser!(PathBuf))
-                         .help("Directory with `.bin` files to scan"))
-                    .arg(Arg::new("hashes")
-                         .short('H')
-                         .value_name("dir")
-                         .required(true)
-                         .value_parser(value_parser!(PathBuf))
-                         .help("Directory with known hash lists"))
+                    .arg(arg_bin_dir.clone())
+                    .arg(arg_hashes_dir.clone().required(true))
             })
             .runner(|subm| {
                 let path = subm.get_one::<PathBuf>("input").unwrap();
@@ -518,7 +551,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let dir = subm.get_one::<PathBuf>("hashes").unwrap();
                     BinHashMappers::from_dirpath(Path::new(dir))?
                 };
-                HashesMatchingEntriesVisitor::new(&hmappers).visit_dir(path)?;
+                HashesMatchingEntriesVisitor::new(&hmappers).traverse_dir(path)?;
                 Ok(())
             })
             )

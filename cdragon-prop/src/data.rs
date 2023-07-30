@@ -110,7 +110,9 @@ impl BinPathValue {
 
 
 /// Trait for values enumerated in `BinType`
-pub trait BinValue {}
+pub trait BinValue {
+    const TYPE: BinType;
+}
 
 macro_rules! declare_bintype_struct {
     ($type:ident ($t:ty) [$($d:ident),* $(,)?]) => {
@@ -227,32 +229,32 @@ impl BinMap {
     }
 }
 
-impl BinValue for BinNone {}
-impl BinValue for BinBool {}
-impl BinValue for BinS8 {}
-impl BinValue for BinU8 {}
-impl BinValue for BinS16 {}
-impl BinValue for BinU16 {}
-impl BinValue for BinS32 {}
-impl BinValue for BinU32 {}
-impl BinValue for BinS64 {}
-impl BinValue for BinU64 {}
-impl BinValue for BinFloat {}
-impl BinValue for BinVec2 {}
-impl BinValue for BinVec3 {}
-impl BinValue for BinVec4 {}
-impl BinValue for BinMatrix {}
-impl BinValue for BinColor {}
-impl BinValue for BinString {}
-impl BinValue for BinHash {}
-impl BinValue for BinPath {}
-impl BinValue for BinList {}
-impl BinValue for BinStruct {}
-impl BinValue for BinEmbed {}
-impl BinValue for BinLink {}
-impl BinValue for BinOption {}
-impl BinValue for BinMap {}
-impl BinValue for BinFlag {}
+impl BinValue for BinNone { const TYPE: BinType = BinType::None; }
+impl BinValue for BinBool { const TYPE: BinType = BinType::Bool; }
+impl BinValue for BinS8 { const TYPE: BinType = BinType::S8; }
+impl BinValue for BinU8 { const TYPE: BinType = BinType::U8; }
+impl BinValue for BinS16 { const TYPE: BinType = BinType::S16; }
+impl BinValue for BinU16 { const TYPE: BinType = BinType::U16; }
+impl BinValue for BinS32 { const TYPE: BinType = BinType::S32; }
+impl BinValue for BinU32 { const TYPE: BinType = BinType::U32; }
+impl BinValue for BinS64 { const TYPE: BinType = BinType::S64; }
+impl BinValue for BinU64 { const TYPE: BinType = BinType::U64; }
+impl BinValue for BinFloat { const TYPE: BinType = BinType::Float; }
+impl BinValue for BinVec2 { const TYPE: BinType = BinType::Vec2; }
+impl BinValue for BinVec3 { const TYPE: BinType = BinType::Vec3; }
+impl BinValue for BinVec4 { const TYPE: BinType = BinType::Vec4; }
+impl BinValue for BinMatrix { const TYPE: BinType = BinType::Matrix; }
+impl BinValue for BinColor { const TYPE: BinType = BinType::Color; }
+impl BinValue for BinString { const TYPE: BinType = BinType::String; }
+impl BinValue for BinHash { const TYPE: BinType = BinType::Hash; }
+impl BinValue for BinPath { const TYPE: BinType = BinType::Path; }
+impl BinValue for BinList { const TYPE: BinType = BinType::List; }
+impl BinValue for BinStruct { const TYPE: BinType = BinType::Struct; }
+impl BinValue for BinEmbed { const TYPE: BinType = BinType::Embed; }
+impl BinValue for BinLink { const TYPE: BinType = BinType::Link; }
+impl BinValue for BinOption { const TYPE: BinType = BinType::Option; }
+impl BinValue for BinMap { const TYPE: BinType = BinType::Map; }
+impl BinValue for BinFlag { const TYPE: BinType = BinType::Flag; }
 
 
 /// Basic bin types
@@ -290,5 +292,19 @@ pub enum BinType {
     Option = 24,
     Map = 25,
     Flag = 26,
+}
+
+impl BinType {
+    /// Return true for nested types
+    #[inline]
+    pub const fn is_nested(&self) -> bool {
+        matches!(self,
+            BinType::List |
+            BinType::List2 |
+            BinType::Struct |
+            BinType::Embed |
+            BinType::Option |
+            BinType::Map)
+    }
 }
 

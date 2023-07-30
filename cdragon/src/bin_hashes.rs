@@ -6,6 +6,7 @@ use cdragon_prop::{
     BinEntry,
     BinHashMappers,
     BinHashSets,
+    BinTraversal,
     BinVisitor,
     data::*,
 };
@@ -16,19 +17,18 @@ pub struct CollectHashesVisitor {
     pub hashes: BinHashSets,
 }
 
+impl CollectHashesVisitor {
+    // Used to chain with `traverse_dir()`
+    pub fn take_result(&mut self) -> BinHashSets {
+        std::mem::take(&mut self.hashes)
+    }
+}
+
 impl BinVisitor for CollectHashesVisitor {
     // Note: Don't collect WAD paths (BinPath)
 
     fn visit_type(&mut self, btype: BinType) -> bool {
-        matches!(btype,
-            BinType::Hash |
-            BinType::List |
-            BinType::List2 |
-            BinType::Struct |
-            BinType::Embed |
-            BinType::Link |
-            BinType::Option |
-            BinType::Map)
+        btype == BinType::Hash || btype == BinType::Link || btype.is_nested()
     }
 
     fn visit_entry(&mut self, value: &BinEntry) -> bool {
@@ -120,16 +120,16 @@ pub struct CollectStringsVisitor {
     pub strings: HashSet<String>,
 }
 
+impl CollectStringsVisitor {
+    // Used to chain with `traverse_dir()`
+    pub fn take_result(&mut self) -> HashSet<String> {
+        std::mem::take(&mut self.strings)
+    }
+}
+
 impl BinVisitor for CollectStringsVisitor {
     fn visit_type(&mut self, btype: BinType) -> bool {
-        matches!(btype,
-            BinType::String |
-            BinType::List |
-            BinType::List2 |
-            BinType::Struct |
-            BinType::Embed |
-            BinType::Option |
-            BinType::Map)
+        btype == BinType::String || btype.is_nested()
     }
 
     fn visit_string(&mut self, value: &BinString) {
@@ -138,6 +138,49 @@ impl BinVisitor for CollectStringsVisitor {
         }
     }
 }
+
+
+/// Visitor to search entries containing a given bin value (hash, string, ...)
+#[derive(Default)]
+pub struct SearchBinValueVisitor<T, F: FnMut(&BinEntry)> {
+    pattern: T,
+    on_match: F,
+    matched: bool,
+}
+
+impl<T, F: FnMut(&BinEntry)> SearchBinValueVisitor<T, F> {
+    pub fn new(pattern: T, on_match: F) -> Self {
+        Self { pattern, on_match, matched: false }
+    }
+}
+
+macro_rules! impl_search_bin_value_visitor {
+    ($typ:ty, $visit_func:ident) => {
+        impl<F: FnMut(&BinEntry)> BinVisitor for SearchBinValueVisitor<$typ, F> {
+            fn traverse_entry(&mut self, entry: &BinEntry) {
+                self.matched = false;
+                entry.traverse_bin(self);
+                if self.matched {
+                    (self.on_match)(entry);
+                }
+            }
+
+            fn visit_type(&mut self, btype: BinType) -> bool {
+                !self.matched && (btype == <$typ as BinValue>::TYPE || btype.is_nested())
+            }
+
+            fn $visit_func(&mut self, value: &$typ) {
+                if value == &self.pattern {
+                    self.matched = true;
+                }
+            }
+        }
+    }
+}
+
+impl_search_bin_value_visitor!(BinString, visit_string);
+impl_search_bin_value_visitor!(BinHash, visit_hash);
+impl_search_bin_value_visitor!(BinLink, visit_link);
 
 
 pub struct HashesMatchingEntriesVisitor<'a> {
@@ -160,15 +203,7 @@ impl<'a> HashesMatchingEntriesVisitor<'a> {
 
 impl<'a> BinVisitor for HashesMatchingEntriesVisitor<'a> {
     fn visit_type(&mut self, btype: BinType) -> bool {
-        self.current_entry.is_some() &&
-        matches!(btype,
-            BinType::Hash |
-            BinType::List |
-            BinType::List2 |
-            BinType::Struct |
-            BinType::Embed |
-            BinType::Option |
-            BinType::Map)
+        self.current_entry.is_some() && btype == BinType::Hash || btype.is_nested()
     }
 
     fn visit_entry(&mut self, value: &BinEntry) -> bool {

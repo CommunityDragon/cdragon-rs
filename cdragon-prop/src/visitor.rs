@@ -13,6 +13,12 @@ use super::{
 /// `visit_type()` can be used to easily ignore some types.
 /// It is used for default implementations and internal shortcuts.
 pub trait BinVisitor {
+    /// Called to visit an entry
+    /// This method exists so an implementation can execute code after an entry has been visited.
+    fn traverse_entry(&mut self, value: &BinEntry) {
+        value.traverse_bin(self);
+    }
+
     /// Return true to visit given type
     fn visit_type(&mut self, _btype: BinType) -> bool { true }
 
@@ -48,15 +54,15 @@ pub trait BinVisitor {
 }
 
 /// Interface to traverse nested bin values with a visitor
-pub trait BinTraversal {
-    fn traverse_bin<BV: BinVisitor>(&self, visitor: &mut BV);
+pub trait BinTraversal<BV: BinVisitor + ?Sized> {
+    fn traverse_bin(&self, visitor: &mut BV);
 }
 
 macro_rules! impl_traversal {
     ($t:ty, $visit:ident) => {
-        impl BinTraversal for $t {
+        impl<BV: BinVisitor + ?Sized> BinTraversal<BV> for $t {
             #[inline]
-            fn traverse_bin<BV: BinVisitor>(&self, visitor: &mut BV) {
+            fn traverse_bin(&self, visitor: &mut BV) {
                 visitor.$visit(self);
             }
         }
@@ -86,8 +92,8 @@ impl_traversal!(BinLink, visit_link);
 impl_traversal!(BinFlag, visit_flag);
 
 
-impl BinTraversal for BinEntry {
-    fn traverse_bin<BV: BinVisitor>(&self, visitor: &mut BV) {
+impl<BV: BinVisitor + ?Sized> BinTraversal<BV> for BinEntry {
+    fn traverse_bin(&self, visitor: &mut BV) {
         if visitor.visit_entry(self) {
             for field in self.fields.iter() {
                 field.traverse_bin(visitor);
@@ -96,8 +102,8 @@ impl BinTraversal for BinEntry {
     }
 }
 
-impl BinTraversal for BinField {
-    fn traverse_bin<BV: BinVisitor>(&self, visitor: &mut BV) {
+impl<BV: BinVisitor + ?Sized> BinTraversal<BV> for BinField {
+    fn traverse_bin(&self, visitor: &mut BV) {
         if visitor.visit_field(self) {
             binvalue_map_type!(self.vtype, T, {
                 self.downcast::<T>().unwrap().traverse_bin(visitor);
@@ -106,8 +112,8 @@ impl BinTraversal for BinField {
     }
 }
 
-impl BinTraversal for BinStruct {
-    fn traverse_bin<BV: BinVisitor>(&self, visitor: &mut BV) {
+impl<BV: BinVisitor + ?Sized> BinTraversal<BV> for BinStruct {
+    fn traverse_bin(&self, visitor: &mut BV) {
         if visitor.visit_struct(self) {
             for field in self.fields.iter() {
                 field.traverse_bin(visitor);
@@ -116,8 +122,8 @@ impl BinTraversal for BinStruct {
     }
 }
 
-impl BinTraversal for BinEmbed {
-    fn traverse_bin<BV: BinVisitor>(&self, visitor: &mut BV) {
+impl<BV: BinVisitor + ?Sized> BinTraversal<BV> for BinEmbed {
+    fn traverse_bin(&self, visitor: &mut BV) {
         if visitor.visit_embed(self) {
             for field in self.fields.iter() {
                 field.traverse_bin(visitor);
@@ -126,8 +132,8 @@ impl BinTraversal for BinEmbed {
     }
 }
 
-impl BinTraversal for BinOption {
-    fn traverse_bin<BV: BinVisitor>(&self, visitor: &mut BV) {
+impl<BV: BinVisitor + ?Sized> BinTraversal<BV> for BinOption {
+    fn traverse_bin(&self, visitor: &mut BV) {
         if visitor.visit_option(self) {
             if self.value.is_some() {
                 binvalue_map_type!(self.vtype, V, {
@@ -138,8 +144,8 @@ impl BinTraversal for BinOption {
     }
 }
 
-impl BinTraversal for BinList {
-    fn traverse_bin<BV: BinVisitor>(&self, visitor: &mut BV) {
+impl<BV: BinVisitor + ?Sized> BinTraversal<BV> for BinList {
+    fn traverse_bin(&self, visitor: &mut BV) {
         if visitor.visit_list(self) {
             binvalue_map_type!(self.vtype, V, {
                 for v in self.downcast::<V>().unwrap().iter() {
@@ -150,8 +156,8 @@ impl BinTraversal for BinList {
     }
 }
 
-impl BinTraversal for BinMap {
-    fn traverse_bin<BV: BinVisitor>(&self, visitor: &mut BV) {
+impl<BV: BinVisitor + ?Sized> BinTraversal<BV> for BinMap {
+    fn traverse_bin(&self, visitor: &mut BV) {
         if visitor.visit_map(self) {
             binvalue_map_keytype!(self.ktype, K, {
                 binvalue_map_type!(self.vtype, V, {

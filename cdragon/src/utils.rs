@@ -5,7 +5,6 @@ use std::path::{Path, PathBuf};
 use num_traits::Num;
 use walkdir::{WalkDir, DirEntry};
 use cdragon_prop::{
-    BinTraversal,
     BinVisitor,
     PropError,
     PropFile,
@@ -139,17 +138,17 @@ pub fn bin_files_from_dir<P: AsRef<Path>>(root: P) -> impl Iterator<Item=PathBuf
 
 
 /// Trait to visit a directory using a BinVisitor
-pub trait BinDirectoryVisitor: BinVisitor + Sized {
-    fn visit_dir<P: AsRef<Path>>(mut self, root: P) -> Result<Self, PropError> {
+pub trait BinDirectoryVisitor: BinVisitor {
+    fn traverse_dir<P: AsRef<Path>>(&mut self, root: P) -> Result<&mut Self, PropError> {
         for path in bin_files_from_dir(root) {
             let scanner = PropFile::scan_entries_from_path(path)?;
             for entry in scanner.parse() {
-                entry?.traverse_bin(&mut self);
+                self.traverse_entry(&entry?);
             }
         }
         Ok(self)
     }
 }
 
-impl<T> BinDirectoryVisitor for T where T: BinVisitor {}
+impl<T> BinDirectoryVisitor for T where T: BinVisitor + ?Sized {}
 

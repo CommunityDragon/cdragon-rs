@@ -182,14 +182,14 @@ impl BinHashGuesser {
         self.with_hook(Box::new(MultiHook::new(types, on_entry)))
     }
 
+    // Guessable, but don't bother
+    // - TrophyData: Loadouts/SummonerTrophies/Trophies/{cup}/Trophy_{n}
+    //   Where {cup} is from {4458ef52} (type {1ebb9d12}) and {n} is 4, 8, 16
+
     //TODO
     // GameModeMapData parsing
     // - Format is `Maps/Shipping/{map}/Modes/{mModeName}`
     // - ... but the map has to be iterated
-    // Trophies
-    // - pattern: Loadouts/SummonerTrophies/Trophies/%cup%/Trophy_%gem%
-    // - %cup%: probably listed somewhere, or retrieved from other entries
-    // - %gem%: 4 8 16
     // Pedestal
     // - pattern: Loadouts/SummonerTrophies/Pedestals/%pedestal%
     // Lots of hashes that are actually entries
@@ -328,7 +328,6 @@ impl BinHashGuesser {
                 for (k, v) in map.iter() {
                     if finder.is_unknown(BinHashKind::HashValue, k.0.hash) {
                         if let Some(target) = finder.get_str(BinHashKind::EntryPath, v.0.hash) {
-                            println!("check {}", target);
                             let target = target.to_owned();
                             if finder.check_one(BinHashKind::HashValue, k.0.hash, &target) {
                                 // found
@@ -349,20 +348,6 @@ impl BinHashGuesser {
                 // - Some entries don't exist at all
                 if let Some(map) = &binget!(entry => resourceMap(BinMap)) {
                     guess_map_key_from_link_value(map, finder);
-
-                    /*
-                    // Guess value from key (append to entry's prefix)
-                    if let Some(path) = finder.get_str(BinHashKind::EntryPath, entry.path.hash).and_then(|p| p.rsplit_once('/')) {
-                        let path = path.to_owned();
-                        for (k, v) in map.iter() {
-                            if finder.is_unknown(BinHashKind::HashValue, v.0.hash) {
-                                if let Some(key) = finder.get_str(BinHashKind::EntryPath, k.0.hash)
-                                    finder.check_one(BinHashKind::HashValue, k.0.hash, ...);
-                                }
-                            }
-                        }
-                    }
-                    */
                 }
             })
 
