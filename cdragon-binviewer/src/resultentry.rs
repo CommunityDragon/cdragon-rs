@@ -1,8 +1,7 @@
-use std::fmt;
 use std::rc::Rc;
+use std::future::Future;
 use gloo_console::{debug, error};
 use yew::prelude::*;
-use wasm_bindgen::UnwrapThrowExt;
 use cdragon_prop::{
     BinEntryPath,
     BinClassName,
@@ -15,174 +14,135 @@ use super::{
 };
 
 
-#[derive(Default)]
-pub struct ResultEntry {
-    state: Rc<AppState>,
-    entry: Option<BinEntry>,
+pub fn entry_element_id(hpath: BinEntryPath) -> String {
+    format!("entry-{:x}", hpath)
 }
-
-pub enum Msg {
-    ToggleCollapse,
-    SetEntry(BinEntry),
-}
-
-impl fmt::Debug for Msg {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Msg::ToggleCollapse => write!(f, "ToggleCollapse"),
-            Msg::SetEntry(_) => write!(f, "SetEntry(entry)"),
-        }
-    }
-}
-
 
 #[derive(Properties, PartialEq)]
 pub struct Props {
     pub hpath: BinEntryPath,
     pub htype: BinClassName,
-    /// Force expand and scroll into view if true, do nothing if false
-    #[prop_or_default]
-    pub select: bool,
 }
 
-impl Props {
-    /// Return the HTML ID of the "main" element
-    fn element_id(&self) -> String {
-        format!("entry-{:x}", self.hpath)
-    }
+
+enum ResultEntryState {
+    Folded,
+    Loading,
+    Opened(BinEntry),
 }
 
-impl Component for ResultEntry {
-    type Message = Msg;
-    type Properties = Props;
-
-    fn create(ctx: &Context<Self>) -> Self {
-        let (state, _listener) = ctx
-            .link()
-            //XXX Here Services changes are ignored; could have used `callback(ComponentMsg::Something)`
-            .context::<Rc<AppState>>(ctx.link().batch_callback(|_| None))
-            .expect("context mut be set");
-
-        let props = ctx.props();
-        let mut entry = ResultEntry {
-            state,
-            entry: None,
-        };
-        if props.select {
-            entry.select_entry(ctx); //TODO
-        }
-        entry
-    }
-
-    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
-        debug!(format!("ResultEntry message: {:?}", msg));
-        match msg {
-            Msg::ToggleCollapse => {
-                if self.is_collapsed() {
-                    self.expand_entry(ctx);
-                    false
-                } else {
-                    self.collapse_entry();
-                    true
-                }
-            },
-
-            Msg::SetEntry(entry) => {
-                self.entry = Some(entry);
-                true
-            },
-        }
-    }
-
-    fn changed(&mut self, ctx: &Context<Self>, _old_props: &Self::Properties) -> bool {
-        let props = ctx.props();
-        if self.entry.as_ref().map(|e| e.path) != Some(props.hpath) {
-            self.entry = None;
-        }
-        if props.select {
-            self.select_entry(ctx); //TODO
-        }
-        true
-    }
-
-    fn view(&self, ctx: &Context<Self>) -> Html {
-        let props = ctx.props();
-        let mut b = BinViewBuilder::new(&self.state.services.hash_mappers);
-        let item_class = if self.entry.is_none() { "collapsed" } else { "" };
-        let onclick_htype = props.htype.clone();
-
-        let on_header_click = ctx.link().callback(|_| Msg::ToggleCollapse);
-        let on_type_click = self.state.messaging.reform(move |_| AppMsg::FilterEntryType(onclick_htype));
-
-        html! {
-            <li>
-                <div class="bin-entry" id={props.element_id()}>
-                    <div class={classes!("bin-entry-header", "bin-item-header", item_class)}
-                        onclick={on_header_click}>
-                        <span class="bin-entry-path">
-                            { b.format_entry_path(props.hpath) }
-                        </span>
-                        {" "}
-                        <span class="bin-entry-type"
-                              onclick={on_type_click}>
-                            { b.format_type_name(props.htype) }
-                        </span>
-                    </div>
-                    { self.view_expanded_entry(&mut b) }
-                </div>
-            </li>
+impl ResultEntryState {
+    fn entry(&self) -> Option<&BinEntry> {
+        match self {
+            Self::Opened(entry) => Some(entry),
+            _ => None,
         }
     }
 }
 
-impl ResultEntry {
-    fn is_collapsed(&self) -> bool {
-        !self.entry.is_some()
-    }
 
-    fn collapse_entry(&mut self) {
-        self.entry = None;
-    }
+#[function_component(ResultEntry)]
+pub fn result_entry(props: &Props) -> Html {
+    let state_ctx = use_context::<AppState>().unwrap();
+    let entry_state = use_state(|| ResultEntryState::Folded);
 
-    fn expand_entry(&mut self, ctx: &Context<Self>) {
-        if self.entry.is_some() {
-            return;  // already expanded
-        }
-
-        let props = ctx.props();
+    debug!(format!("refresh result entry {:?} / {}", props.hpath, entry_state.entry().is_some()));
+    let load_entry = {
+        let services = state_ctx.services.clone();
+        let entry_state = entry_state.clone();
         let hpath = props.hpath;
-        let services = self.state.services.clone();
-        ctx.link().send_future_batch(async move {
+        use_async(async move {
             let file = services.entrydb.get_entry_file(hpath).unwrap().to_string();
             let result = services.binload_service.fetch_entry(&file, hpath).await;
-            match result {
-                Ok(entry) => Some(Msg::SetEntry(entry)),
-                Err(e) => { error!(format!("failed to load bin entry: {}", e)); None }
-            }
-        });
-    }
+            entry_state.set(match result {
+                Ok(entry) => ResultEntryState::Opened(entry),
+                Err(e) => {
+                    error!(format!("failed to load bin entry: {}", e));
+                    ResultEntryState::Folded
+                }
+            });
+        })
+    };
 
-    /// Expand entry and scroll to it
-    fn select_entry(&mut self, ctx: &Context<Self>) {
-        self.expand_entry(ctx);
-        web_sys::window().expect_throw("window is undefined")
-            .document().expect_throw("document is undefined")
-            .get_element_by_id(&ctx.props().element_id())
-            .map(|e| e.scroll_into_view());
-    }
+    let on_header_click = {
+        let entry_state = entry_state.clone();
+        Callback::from(move |_| {
+            match *entry_state {
+                ResultEntryState::Folded => {
+                    entry_state.set(ResultEntryState::Loading);
+                    load_entry.run();
+                }
+                ResultEntryState::Loading => {}
+                ResultEntryState::Opened(_) => {
+                    entry_state.set(ResultEntryState::Folded);
+                }
+            };
+        })
+    };
 
-    fn view_expanded_entry(&self, b: &mut BinViewBuilder) -> Html {
-        match self.entry.as_ref() {
-            Some(entry) =>
-                html! {
-                    <ul>
-                        { for entry.fields.iter().map(|v| view_binfield(&self.state, b, v)) }
-                    </ul>
-                },
-            None => html! {},
-        }
+    let on_type_click = {
+        let htype = props.htype;
+        state_ctx.messaging.reform(move |_| AppMsg::FilterEntryType(htype))
+    };
+
+    let mut b = BinViewBuilder::new(&state_ctx.services.hash_mappers);
+    let entry = entry_state.entry();
+    let item_class = if entry.is_some() { None } else { Some("collapsed") };
+    let element_id = entry_element_id(props.hpath);
+
+    html! {
+        <li>
+            <div class="bin-entry" id={element_id}>
+                <div class={classes!("bin-entry-header", "bin-item-header", item_class)}
+                    onclick={on_header_click}>
+                    <span class="bin-entry-path">
+                        { b.format_entry_path(props.hpath) }
+                    </span>
+                    {" "}
+                    <span class="bin-entry-type"
+                          onclick={on_type_click}>
+                        { b.format_type_name(props.htype) }
+                    </span>
+                </div>
+                {
+                    match entry {
+                        Some(entry) => html! {
+                            <ul>
+                                { for entry.fields.iter().map(|v| view_binfield(&state_ctx, &mut b, v)) }
+                            </ul>
+                        },
+                        None => html! {},
+                    }
+                }
+            </div>
+        </li>
     }
 }
+
+
+struct UseAsyncHandle {
+    run: Rc<dyn Fn()>,
+}
+
+impl UseAsyncHandle {
+    pub fn run(&self) {
+        (self.run)();
+    }
+}
+
+#[hook]
+fn use_async<F>(future: F) -> UseAsyncHandle where F: Future<Output=()> + 'static {
+    use yew::platform::spawn_local;
+
+    let future = std::cell::Cell::new(Some(future));
+    let run = Rc::new(move || {
+        if let Some(f) = future.take() {
+            spawn_local(f);
+        }
+    });
+    UseAsyncHandle { run }
+}
+
 
 
 mod binview {

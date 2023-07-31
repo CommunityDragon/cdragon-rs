@@ -7,6 +7,7 @@ workspace = ".."
 
 [dependencies]
 cdragon-prop = { path = "../cdragon-prop" }
+cdragon-utils = { path = "../cdragon-utils" }
 futures = "0.3"
 gloo-console = "0.2"
 gloo-net = { version = "0.3", features = ["http"] }

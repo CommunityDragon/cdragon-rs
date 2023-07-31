@@ -18,7 +18,10 @@ use web_sys::HtmlInputElement;
 use cdragon_prop::data::*;
 
 use services::Services;
-use resultentry::ResultEntry;
+use resultentry::{
+    ResultEntry,
+    entry_element_id,
+};
 
 type Result<T, E = Box<dyn std::error::Error>> = std::result::Result<T, E>;
 
@@ -39,10 +42,8 @@ impl PartialEq for AppState {
 
 #[derive(Default)]
 pub struct App {
-    state: Rc<AppState>,
+    state: AppState,
     result_entries: Vec<BinEntryPath>,
-    /// Entry to expand and jump to, reset once built
-    selected_entry: Option<BinEntryPath>,
 }
 
 pub enum Msg {
@@ -79,21 +80,20 @@ impl Component for App {
             Msg::ServicesLoaded(state)
         });
 
-        let state = Rc::new(AppState {
+        let state = AppState {
             services: Default::default(),
             messaging: ctx.link().callback(std::convert::identity),
-        });
+        };
 
         App { state, ..Default::default() }
     }
 
-    fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         debug!(format!("App message: {:?}", msg));
         match msg {
             Msg::ServicesLoaded(services) => {
                 info!("switching to loaded state");
-                let shared_state = Rc::make_mut(&mut self.state);
-                shared_state.services = Rc::new(services);
+                self.state.services = Rc::new(services);
                 true
             }
 
@@ -116,10 +116,13 @@ impl Component for App {
             Msg::GoToEntry(hpath) => {
                 info!(format!("go to entry {:x}", hpath));
                 if !self.result_entries.contains(&hpath) {
-                    // add the element to the results and jump to it
-                    self.result_entries.insert(0, hpath);
+                    if let Some(path) = self.state.services.entrydb.get_entry_file(hpath) {
+                        ctx.link().send_message(Msg::SearchEntries(path.into()));
+                    }
                 }
-                self.selected_entry = Some(hpath);
+                if let Some(window) = web_sys::window() {
+                    let _ = window.location().set_hash(&format!("#{}", entry_element_id(hpath)));
+                }
                 true
             }
 
@@ -153,7 +156,7 @@ impl Component for App {
 
         let state = self.state.clone();
         html! {
-            <ContextProvider<Rc<AppState>> context={state}>
+            <ContextProvider<AppState> context={state}>
                 <div>
                     <div id="search">
                         <input type="text" placeholder="Search entries" {onkeypress} />
@@ -163,7 +166,7 @@ impl Component for App {
                         { self.view_current_bindata() }
                     </div>
                 </div>
-            </ContextProvider<Rc<AppState>>>
+            </ContextProvider<AppState>>
         }
     }
 }
@@ -196,8 +199,7 @@ impl App {
                                 return html! {};
                             }
                         };
-                        let select = self.selected_entry.map(|h| h == *hpath).unwrap_or(false);
-                        html! { <ResultEntry hpath={*hpath} {htype} {select} /> }
+                        html! { <ResultEntry hpath={*hpath} {htype} /> }
                       })
                     }
                 </ul>

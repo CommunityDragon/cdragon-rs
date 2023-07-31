@@ -130,6 +130,10 @@ a:hover {
   margin-right: 0.6em;
 }
 
+.bin-entry:target > .bin-entry-header {
+  background-color: #fcffd0;
+}
+
 a.tooltipped {
   position: relative;
 }
