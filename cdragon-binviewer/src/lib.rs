@@ -182,7 +182,7 @@ impl App {
         let mut results_count = format!("{}", nresults);
         // assume there was additional results if result count is exactly MAX_SEARCH_RESULTS
         if nresults >= settings::MAX_SEARCH_RESULTS {
-            results_count.push_str("+");
+            results_count.push('+');
         };
         html! {
             <p><b>{ results_count }</b>{" results out of "}<b>{ entry_count }</b>{" entries"}</p>

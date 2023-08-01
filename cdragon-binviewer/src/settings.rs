@@ -1,9 +1,9 @@
 
 /// Base URL for static resources
-pub const STATIC_BASE_URL: &'static str = &".";
+pub const STATIC_BASE_URL: &str = ".";
 
 /// Base URL for game assets
-pub const ASSETS_BASE_URL: &'static str = &"https://raw.communitydragon.org/pbe/game";
+pub const ASSETS_BASE_URL: &str = "https://raw.communitydragon.org/pbe/game";
 
 /// Maximum number of search results to display
 pub const MAX_SEARCH_RESULTS: usize = 1000;

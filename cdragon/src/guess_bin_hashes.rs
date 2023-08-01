@@ -484,7 +484,7 @@ impl BinHashGuesser {
     /// Add hooks that use collected entry types
     pub fn with_collecting_hooks(self) -> Self {
         self
-            .with_hook(Box::new(ItemHashListsHook::default()))
+            .with_hook(Box::<ItemHashListsHook>::default())
     }
 
     /// End guessing, return the updated finder

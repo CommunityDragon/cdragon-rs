@@ -79,9 +79,9 @@ fn wad_and_hmapper_from_paths(wad_path: &Path, hashes_dir: Option<&PathBuf>) -> 
 /// Create bin entry serializer
 fn build_bin_entry_serializer<'a, W: io::Write>(writer: &'a mut W, hmappers: &'a BinHashMappers, json: bool) -> io::Result<Box<dyn BinEntriesSerializer + 'a>> {
     if json {
-        Ok(Box::new(JsonSerializer::new(writer, &hmappers).write_entries()?))
+        Ok(Box::new(JsonSerializer::new(writer, hmappers).write_entries()?))
     } else {
-        Ok(Box::new(TextTreeSerializer::new(writer, &hmappers).write_entries()?))
+        Ok(Box::new(TextTreeSerializer::new(writer, hmappers).write_entries()?))
     }
 }
 

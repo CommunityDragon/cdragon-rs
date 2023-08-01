@@ -132,7 +132,7 @@ impl EntryDatabase {
         }
 
         let mut criterias = MergedCriteria::default();
-        for criteria in words.into_iter().map(|w| self.parse_criteria(w)) {
+        for criteria in words.iter().map(|w| self.parse_criteria(w)) {
             match criteria {
                 SearchCriteria::EntryPath(s) => criterias.entry_paths.push(s),
                 SearchCriteria::EntryPathHash(h) => criterias.entry_hpaths.push(h),
@@ -188,17 +188,16 @@ impl EntryDatabase {
             .unicode(false)
             .case_insensitive(true)
             .build()
-            .map_err(|e| EntryDbError::InvalidSearchPattern(e))
+            .map_err(EntryDbError::InvalidSearchPattern)
     }
 
     /// Parse a search criteria, using database information to resolve hashes
     fn parse_criteria<'a>(&'a self, word: &'a str) -> SearchCriteria<'a> {
-        if word.starts_with('-') {
-            let hash = binhash_from_str(&word[1..]);
+        if let Some(hash) = word.strip_prefix('-') {
             if self.types.contains(&hash.into()) {
                 SearchCriteria::ExcludeEntryType(hash.into())
             } else {
-                SearchCriteria::ExcludeEntryPath(&word[1..])
+                SearchCriteria::ExcludeEntryPath(hash)
             }
         } else {
             let hash = binhash_from_str(word);

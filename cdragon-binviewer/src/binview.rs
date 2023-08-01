@@ -11,15 +11,14 @@ use crate::{
 
 /// Toggle a header's `collapsed` class, to be used in callbacks
 fn header_toggle_collapse(e: MouseEvent) {
-    let this: Option<Element> = e.target().and_then(|e| e.dyn_into::<Element>().ok());
-    this.map(|e| {
+    if let Some(e) = e.target().and_then(|e| e.dyn_into::<Element>().ok()) {
         let classes = e.class_list();
         if classes.contains("collapsed") {
             classes.remove_1("collapsed").ok();
         } else {
             classes.add_1("collapsed").ok();
         };
-    });
+    }
 }
 
 
@@ -33,35 +32,35 @@ impl<'a> BinViewBuilder<'a> {
     }
 
     pub fn format_entry_path(&self, h: BinEntryPath) -> String {
-        match h.get_str(&self.hash_mappers) {
+        match h.get_str(self.hash_mappers) {
             Some(s) => s.to_string(),
             _ => format!("{{{:x}}}", h),
         }
     }
 
     pub fn format_type_name(&self, h: BinClassName) -> String {
-        match h.get_str(&self.hash_mappers) {
+        match h.get_str(self.hash_mappers) {
             Some(s) => s.to_string(),
             _ => format!("{{{:x}}}", h),
         }
     }
 
     pub fn format_field_name(&self, h: BinFieldName) -> String {
-        match h.get_str(&self.hash_mappers) {
+        match h.get_str(self.hash_mappers) {
             Some(s) => s.to_string(),
             _ => format!("{{{:x}}}", h),
         }
     }
 
     pub fn format_hash_value(&self, h: BinHashValue) -> String {
-        match h.get_str(&self.hash_mappers) {
+        match h.get_str(self.hash_mappers) {
             Some(s) => s.to_string(),
             _ => format!("{{{:x}}}", h),
         }
     }
 
     pub fn format_path_value(&self, h: BinPathValue) -> String {
-        match h.get_str(&self.hash_mappers) {
+        match h.get_str(self.hash_mappers) {
             Some(s) => s.to_string(),
             _ => format!("{{{:x}}}", h),
         }
@@ -371,7 +370,7 @@ fn view_vec_values<T: BinViewable>(state: &AppState, b: &mut BinViewBuilder, val
     }
 }
 
-fn view_binvalue_map<K: BinViewable, V: BinViewable>(state: &AppState, b: &mut BinViewBuilder, values: &Vec<(K, V)>) -> Html {
+fn view_binvalue_map<K: BinViewable, V: BinViewable>(state: &AppState, b: &mut BinViewBuilder, values: &[(K, V)]) -> Html {
     html! {
         <ul>
             { for values.iter().map(|(k, v)| html! {
