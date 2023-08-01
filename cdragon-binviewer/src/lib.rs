@@ -5,6 +5,7 @@ mod entrydb;
 mod binloadservice;
 mod services;
 mod resultentry;
+mod binview;
 
 use std::fmt;
 use std::rc::Rc;
@@ -120,6 +121,8 @@ impl Component for App {
                         ctx.link().send_message(Msg::SearchEntries(path.into()));
                     }
                 }
+                //XXX Does not work if navigating due to search change
+                // To be reworked when handling the query as part of the URL
                 if let Some(window) = web_sys::window() {
                     let _ = window.location().set_hash(&format!("#{}", entry_element_id(hpath)));
                 }
