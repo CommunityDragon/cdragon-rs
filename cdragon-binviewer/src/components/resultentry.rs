@@ -1,6 +1,4 @@
-use std::rc::Rc;
-use std::future::Future;
-use gloo_console::{debug, error};
+use gloo_console::error;
 use yew::prelude::*;
 use cdragon_prop::{
     BinEntryPath,
@@ -8,15 +6,12 @@ use cdragon_prop::{
     BinEntry,
 };
 use crate::{
-    AppState,
-    Msg as AppMsg,
+    AppContext,
+    AppAction,
     binview::{BinViewBuilder, view_binfield},
+    hooks::use_async,
 };
 
-
-pub fn entry_element_id(hpath: BinEntryPath) -> String {
-    format!("entry-{:x}", hpath)
-}
 
 #[derive(Properties, PartialEq)]
 pub struct Props {
@@ -43,17 +38,16 @@ impl ResultEntryState {
 
 #[function_component(ResultEntry)]
 pub fn result_entry(props: &Props) -> Html {
-    let state_ctx = use_context::<AppState>().unwrap();
+    let state = use_context::<AppContext>().unwrap();
     let entry_state = use_state(|| ResultEntryState::Folded);
 
-    debug!(format!("refresh result entry {:?} / {}", props.hpath, entry_state.entry().is_some()));
     let load_entry = {
-        let services = state_ctx.services.clone();
+        let state = state.clone();
         let entry_state = entry_state.clone();
         let hpath = props.hpath;
         use_async(async move {
-            let file = services.entrydb.get_entry_file(hpath).unwrap().to_string();
-            let result = services.binload_service.fetch_entry(&file, hpath).await;
+            let file = state.services.entrydb.get_entry_file(hpath).unwrap().to_string();
+            let result = state.services.fetch_entry(&file, hpath).await;
             entry_state.set(match result {
                 Ok(entry) => ResultEntryState::Opened(entry),
                 Err(e) => {
@@ -81,11 +75,12 @@ pub fn result_entry(props: &Props) -> Html {
     };
 
     let on_type_click = {
+        let state = state.clone();
         let htype = props.htype;
-        state_ctx.messaging.reform(move |_| AppMsg::FilterEntryType(htype))
+        move |_| state.dispatch(AppAction::FilterEntryType(htype))
     };
 
-    let mut b = BinViewBuilder::new(&state_ctx.services.hash_mappers);
+    let mut b = BinViewBuilder::new(&state.services.hmappers);
     let entry = entry_state.entry();
     let item_class = if entry.is_some() { None } else { Some("collapsed") };
     let element_id = entry_element_id(props.hpath);
@@ -108,7 +103,7 @@ pub fn result_entry(props: &Props) -> Html {
                     match entry {
                         Some(entry) => html! {
                             <ul>
-                                { for entry.fields.iter().map(|v| view_binfield(&state_ctx, &mut b, v)) }
+                                { for entry.fields.iter().map(|v| view_binfield(&state, &mut b, v)) }
                             </ul>
                         },
                         None => html! {},
@@ -120,26 +115,7 @@ pub fn result_entry(props: &Props) -> Html {
 }
 
 
-struct UseAsyncHandle {
-    run: Rc<dyn Fn()>,
-}
-
-impl UseAsyncHandle {
-    pub fn run(&self) {
-        (self.run)();
-    }
-}
-
-#[hook]
-fn use_async<F>(future: F) -> UseAsyncHandle where F: Future<Output=()> + 'static {
-    use yew::platform::spawn_local;
-
-    let future = std::cell::Cell::new(Some(future));
-    let run = Rc::new(move || {
-        if let Some(f) = future.take() {
-            spawn_local(f);
-        }
-    });
-    UseAsyncHandle { run }
+pub fn entry_element_id(hpath: BinEntryPath) -> String {
+    format!("entry-{:x}", hpath)
 }
 

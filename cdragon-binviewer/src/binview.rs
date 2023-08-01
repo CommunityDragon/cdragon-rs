@@ -5,8 +5,8 @@ use wasm_bindgen::JsCast;
 use cdragon_prop::*;
 use crate::{
     settings,
-    AppState,
-    Msg as AppMsg,
+    AppContext,
+    AppAction,
 };
 
 /// Toggle a header's `collapsed` class, to be used in callbacks
@@ -71,9 +71,9 @@ impl<'a> BinViewBuilder<'a> {
 trait BinViewable {
     const NESTED: bool = false;
 
-    fn view_value(&self, _state: &AppState, b: &mut BinViewBuilder) -> Html;
+    fn view_value(&self, _state: &AppContext, b: &mut BinViewBuilder) -> Html;
 
-    fn view_field_value(&self, state: &AppState, b: &mut BinViewBuilder) -> Html {
+    fn view_field_value(&self, state: &AppContext, b: &mut BinViewBuilder) -> Html {
         self.view_value(state, b)
     }
 
@@ -110,7 +110,7 @@ fn basic_bintype_name(btype: BinType) -> &'static str {
 }
 
 
-pub fn view_binfield(state: &AppState, b: &mut BinViewBuilder, field: &BinField) -> Html {
+pub fn view_binfield(state: &AppContext, b: &mut BinViewBuilder, field: &BinField) -> Html {
     let (v_nested, v_type, v_value) = binvalue_map_type!(field.vtype, T, {
         let v = field.downcast::<T>().unwrap();
         (T::NESTED, v.view_type(b), v.view_field_value(state, b))
@@ -145,7 +145,7 @@ pub fn view_binfield(state: &AppState, b: &mut BinViewBuilder, field: &BinField)
 macro_rules! impl_viewable {
     ($t:ty, $btype:expr, ($self:ident, $state:ident, $b:ident) => $e:expr) => {
         impl BinViewable for $t {
-            fn view_value(&self, state: &AppState, b: &mut BinViewBuilder) -> Html {
+            fn view_value(&self, state: &AppContext, b: &mut BinViewBuilder) -> Html {
                 let ($self, $state, $b) = (self, state, b);
                 $e.into()
             }
@@ -208,7 +208,7 @@ impl_viewable!(BinPath, BinType::Hash, (this, _state, b) => html! {
 impl BinViewable for BinList {
     const NESTED: bool = true;
 
-    fn view_value(&self, state: &AppState, b: &mut BinViewBuilder) -> Html {
+    fn view_value(&self, state: &AppContext, b: &mut BinViewBuilder) -> Html {
         let v_values = binvalue_map_type!(
             self.vtype, T, view_vec_values(state, b, self.downcast::<T>().unwrap()));
         html! { <div class="bin-option">{ v_values }</div> }
@@ -228,7 +228,7 @@ impl BinViewable for BinList {
 impl BinViewable for BinStruct {
     const NESTED: bool = true;
 
-    fn view_value(&self, state: &AppState, b: &mut BinViewBuilder) -> Html {
+    fn view_value(&self, state: &AppContext, b: &mut BinViewBuilder) -> Html {
         html! {
             <div class="bin-struct">
                 <div class={classes!("bin-struct-header", "bin-item-header")}
@@ -244,7 +244,7 @@ impl BinViewable for BinStruct {
         }
     }
 
-    fn view_field_value(&self, state: &AppState, b: &mut BinViewBuilder) -> Html {
+    fn view_field_value(&self, state: &AppContext, b: &mut BinViewBuilder) -> Html {
         html! {
             <div class="bin-struct">
                 <ul>
@@ -268,7 +268,7 @@ impl BinViewable for BinStruct {
 impl BinViewable for BinEmbed {
     const NESTED: bool = true;
 
-    fn view_value(&self, state: &AppState, b: &mut BinViewBuilder) -> Html {
+    fn view_value(&self, state: &AppContext, b: &mut BinViewBuilder) -> Html {
         html! {
             <div class="bin-struct">
                 <div class={classes!("bin-struct-header", "bin-item-header")}
@@ -284,7 +284,7 @@ impl BinViewable for BinEmbed {
         }
     }
 
-    fn view_field_value(&self, state: &AppState, b: &mut BinViewBuilder) -> Html {
+    fn view_field_value(&self, state: &AppContext, b: &mut BinViewBuilder) -> Html {
         html! {
             <div class="bin-struct">
                 <ul>
@@ -307,7 +307,8 @@ impl BinViewable for BinEmbed {
 
 impl_viewable!(BinLink, BinType::Link, (this, state, b) => {
     let path = this.0;
-    let onclick = state.messaging.reform(move |_| AppMsg::GoToEntry(path));
+    let state = state.clone();
+    let onclick = move |_| state.dispatch(AppAction::FollowLink(path));
     html! {
         <span class="bin-link-value" {onclick}>{ b.format_entry_path(path) }</span>
     }
@@ -316,7 +317,7 @@ impl_viewable!(BinLink, BinType::Link, (this, state, b) => {
 impl BinViewable for BinOption {
     const NESTED: bool = true;
 
-    fn view_value(&self, state: &AppState, b: &mut BinViewBuilder) -> Html {
+    fn view_value(&self, state: &AppContext, b: &mut BinViewBuilder) -> Html {
         match self.value {
             None => "-".into(),
             Some(_) => {
@@ -341,7 +342,7 @@ impl BinViewable for BinOption {
 impl BinViewable for BinMap {
     const NESTED: bool = true;
 
-    fn view_value(&self, state: &AppState, b: &mut BinViewBuilder) -> Html {
+    fn view_value(&self, state: &AppContext, b: &mut BinViewBuilder) -> Html {
         let v_values = binvalue_map_keytype!(
             self.ktype, K, binvalue_map_type!(
                 self.vtype, V, view_binvalue_map(state, b, self.downcast::<K, V>().unwrap())
@@ -362,7 +363,7 @@ impl BinViewable for BinMap {
     }
 }
 
-fn view_vec_values<T: BinViewable>(state: &AppState, b: &mut BinViewBuilder, values: &[T]) -> Html {
+fn view_vec_values<T: BinViewable>(state: &AppContext, b: &mut BinViewBuilder, values: &[T]) -> Html {
     html! {
         <ul>
             { for values.iter().map(|v| html! { <li>{ v.view_value(state, b) }</li> }) }
@@ -370,7 +371,7 @@ fn view_vec_values<T: BinViewable>(state: &AppState, b: &mut BinViewBuilder, val
     }
 }
 
-fn view_binvalue_map<K: BinViewable, V: BinViewable>(state: &AppState, b: &mut BinViewBuilder, values: &[(K, V)]) -> Html {
+fn view_binvalue_map<K: BinViewable, V: BinViewable>(state: &AppContext, b: &mut BinViewBuilder, values: &[(K, V)]) -> Html {
     html! {
         <ul>
             { for values.iter().map(|(k, v)| html! {
