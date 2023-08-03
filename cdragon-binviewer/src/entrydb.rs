@@ -102,16 +102,19 @@ impl EntryDatabase {
         Ok(Self { entries, types, filenames })
     }
 
-    /// Get an entry type from his hash
-    pub fn get_entry_type(&self, hash: BinEntryPath) -> Option<BinClassName> {
-        let (hpath, _) = self.entries.get(&hash)?;
-        Some(*hpath)
+    /// Return true if entry exists
+    pub fn has_entry(&self, hash: BinEntryPath) -> bool {
+        self.entries.contains_key(&hash)
     }
 
-    /// Get an entry file from his hash
-    pub fn get_entry_file(&self, hash: BinEntryPath) -> Option<&str> {
-        let (_, ifile) = self.entries.get(&hash)?;
-        Some(&self.filenames[*ifile])
+    /// Get an entry type and file index
+    pub fn get_entry(&self, hash: BinEntryPath) -> Option<(BinClassName, usize)> {
+        self.entries.get(&hash).copied()
+    }
+
+    /// Get a file path from its index
+    pub fn get_filename(&self, ifile: usize) -> Option<&String> {
+        self.filenames.get(ifile)
     }
 
     /// Return the number of entries

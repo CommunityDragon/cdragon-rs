@@ -4,7 +4,6 @@ use yew::prelude::*;
 use wasm_bindgen::{JsValue, UnwrapThrowExt};
 use cdragon_prop::{
     BinEntryPath,
-    BinClassName,
     BinEntry,
 };
 use crate::{
@@ -20,7 +19,6 @@ pub struct Props {
     /// Send back actions to the app
     pub dispatch: Callback<AppAction>,
     pub hpath: BinEntryPath,
-    pub htype: BinClassName,
     /// True to forcily open the entry and jump to it when loaded
     pub focus: bool,
 }
@@ -48,13 +46,16 @@ pub fn result_entry(props: &Props) -> Html {
     let services = use_context::<AppContext>().unwrap();
     let state = use_state(|| State::Empty);
 
+    let (htype, ifile) = services.entrydb.get_entry(props.hpath).unwrap();
+
     let load_entry = {
         let services = services.clone();
         let state = state.clone();
         let hpath = props.hpath;
+        let ifile = ifile;
         use_async(async move {
-            let file = services.entrydb.get_entry_file(hpath).unwrap().to_string();
-            let result = services.fetch_entry(&file, hpath).await;
+            let file = services.entrydb.get_filename(ifile).unwrap();
+            let result = services.fetch_entry(file, hpath).await;
             state.set(match result {
                 Ok(entry) => State::Opened(entry.into()),
                 Err(e) => {
@@ -87,8 +88,16 @@ pub fn result_entry(props: &Props) -> Html {
     let on_header_click = toggle_entry.reform(|_| ());
 
     let on_type_click = {
-        let htype = props.htype;
+        let htype = htype;
         props.dispatch.reform(move |_| AppAction::FilterEntryType(htype))
+    };
+
+    let on_file_click = {
+        let services = services.clone();
+        props.dispatch.reform(move |_| {
+            let file = services.entrydb.get_filename(ifile).unwrap();
+            AppAction::FilterFile(file.into())
+        })
     };
 
     let on_link_click = props.dispatch.reform(AppAction::FollowLink);
@@ -115,6 +124,7 @@ pub fn result_entry(props: &Props) -> Html {
     }
 
     let mut b = BinViewBuilder::new(&services.hmappers, on_link_click);
+    let file = services.entrydb.get_filename(ifile).unwrap();
     let entry = state.displayed_entry();
     let item_class = if entry.is_some() { None } else { Some("collapsed") };
     let element_id = entry_element_id(props.hpath);
@@ -128,9 +138,12 @@ pub fn result_entry(props: &Props) -> Html {
                         { b.format_entry_path(props.hpath) }
                     </span>
                     {" "}
-                    <span class="bin-entry-type"
-                          onclick={on_type_click}>
-                        { b.format_type_name(props.htype) }
+                    <span class="bin-entry-type" onclick={on_type_click}>
+                        { b.format_type_name(htype) }
+                    </span>
+                    {" "}
+                    <span class="bin-entry-file" onclick={on_file_click}>
+                        { file }
                     </span>
                 </div>
                 {

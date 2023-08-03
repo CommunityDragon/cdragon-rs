@@ -22,12 +22,14 @@ type Result<T, E = Box<dyn std::error::Error>> = std::result::Result<T, E>;
 pub enum AppAction {
     /// Switch the state to a loaded one
     ServicesLoaded(Services),
-    /// Search for entries, update results
+    /// Search for entries
     SearchEntries(String),
-    /// Load given entry (if needed) and scroll to it
+    /// Load given entry (if needed) then focus it
     FollowLink(BinEntryPath),
-    /// Load entries of the given type (update results)
+    /// Load entries of the given type
     FilterEntryType(BinClassName),
+    /// Load entries of the given file
+    FilterFile(String),
 }
 
 #[derive(Clone, Default)]
@@ -116,6 +118,11 @@ impl Reducible for AppState {
                 let pattern = format!("{}", hstr);
                 self.search_entries(pattern, None, true)
             }
+
+            AppAction::FilterFile(file) => {
+                info!(format!("filter file: {}", &file));
+                self.search_entries(file, None, true)
+            }
         }
     }
 }
@@ -162,16 +169,14 @@ pub fn app() -> Html {
                     if !state.result_entries.is_empty() {
                         <ul>
                         { for state.result_entries.iter().map(move |hpath| {
-                             let htype = match services.entrydb.get_entry_type(*hpath) {
-                                 Some(v) => v,
-                                 None => {
-                                     error!(format!("entry not found in database: {:x}", *hpath));
-                                     return html! {};
+                             if services.entrydb.has_entry(*hpath) {
+                                 let focus = focused_entry == Some(*hpath);
+                                 html! {
+                                     <ResultEntry key={hpath.hash} dispatch={dispatch.clone()} hpath={*hpath} {focus} />
                                  }
-                             };
-                             let focus = focused_entry == Some(*hpath);
-                             html! {
-                                 <ResultEntry key={hpath.hash} dispatch={dispatch.clone()} hpath={*hpath} {htype} {focus} />
+                             } else {
+                                 error!(format!("entry not found in database: {:x}", *hpath));
+                                 html! {}
                              }
                          })
                         }

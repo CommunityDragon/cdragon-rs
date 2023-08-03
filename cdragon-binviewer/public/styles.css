@@ -93,13 +93,15 @@ a:hover {
 
 .bin-entry-path { color: #000060; }
 .bin-entry-type { color: #004000; cursor: pointer; }
-.bin-entry-type:hover { color: #009900; }
+.bin-entry-type:hover { background-color: #d0ffd0; }
+.bin-entry-file { color: #b0b0b0; cursor: pointer; }
+.bin-entry-file:hover { background-color: #f0f0f0; }
 .bin-container-type { color: #003000; }
 .bin-struct-type { color: #006000; }
 .bin-field-name { color: #000080; }
 .bin-field-type { color: #006000; }
 .bin-link-value { color: #800000; cursor: pointer; }
-.bin-link-value:hover { color: #c00000; }
+.bin-link-value:hover { background-color: #ffd0d0; }
 .bin-hash-value { }
 .bin-path-value { }
 .bin-color-value-preview {
@@ -113,12 +115,17 @@ a:hover {
 
 .bin-entry-path, 
 .bin-entry-type,
+.bin-entry-file,
 .bin-struct-type,
 .bin-field-name,
 .bin-field-type {
   margin-right: 0.2em;
   padding: 0.1em 0.1em;
   display: inline-block;
+}
+.bin-entry-file {
+  margin-left: 0.5em;
+  font-weight: normal;
 }
 .bin-container-type {
   margin-right: 0.2em;
