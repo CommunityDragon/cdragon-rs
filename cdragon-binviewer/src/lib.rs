@@ -8,10 +8,17 @@ mod components;
 mod binview;
 
 use std::rc::Rc;
-use gloo_console::{debug, info, error};
+use gloo_console::{info, error};
 use yew::prelude::*;
-use wasm_bindgen::{JsValue, UnwrapThrowExt};
+use wasm_bindgen::{
+    JsCast,
+    JsValue,
+    UnwrapThrowExt,
+    closure::Closure,
+};
+use web_sys::UrlSearchParams;
 use cdragon_prop::data::*;
+use cdragon_utils::hashes::HashDef;
 
 use services::Services;
 use components::*;
@@ -30,6 +37,8 @@ pub enum AppAction {
     FilterEntryType(BinClassName),
     /// Load entries of the given file
     FilterFile(String),
+    /// Load given history state
+    LoadHistoryState,
 }
 
 #[derive(Clone, Default)]
@@ -45,69 +54,86 @@ pub struct AppState {
 }
 
 impl AppState {
-    fn with_pattern(search_pattern: String) -> Self {
-        //XXX `focused_entry` should be read from hash
+    /// Parse search from location, search and return a new instance
+    fn from_location(services: Rc<Services>) -> Result<Self, JsValue> {
+        let window = web_sys::window().unwrap_throw();
+        let search = window.location().search()?;
+        let params = UrlSearchParams::new_with_str(&search)?;
+        let pattern = params.get("s").unwrap_or_default();
+        let focus = params.get("e").and_then(|s| u32::from_str_radix(&s, 16).ok().map(BinEntryPath::new));
+        Ok(Self::from_search(services, pattern, focus))
+    }
+
+    /// Search and return a new instance
+    fn from_search(services: Rc<Services>, pattern: String, focus: Option<BinEntryPath>) -> Self {
+        let words: Vec<&str> = pattern.split_whitespace().collect();
+        let result_entries = if words.is_empty() {
+            Vec::new()
+        } else {
+            match services.entrydb.search_words(&words, &services.hmappers) {
+                Ok(it) => it.take(settings::MAX_SEARCH_RESULTS).collect(),
+                Err(e) => {
+                    error!(format!("search failed: {}", e));
+                    vec![]
+                }
+            }
+        };
         Self {
-            search_pattern,
-            .. Default::default()
+            services,
+            search_pattern: pattern,
+            result_entries,
+            //XXX Keep previously opened entries?
+            focused_entry: focus,
         }
     }
 
-    fn search_entries(self: Rc<Self>, pattern: String, focus: Option<BinEntryPath>, push_history: bool) -> Rc<Self> {
-        let words: Vec<&str> = pattern.split_whitespace().collect();
-        let result_entries = match self.services.entrydb.search_words(&words, &self.services.hmappers) {
-            Ok(it) => it.take(settings::MAX_SEARCH_RESULTS).collect(),
-            Err(e) => {
-                error!(format!("search failed: {}", e));
-                vec![]
-            }
+    fn search_and_push(self: Rc<Self>, pattern: String, focus: Option<BinEntryPath>) -> Rc<Self> {
+        let this: Rc<Self> = Self::from_search(self.services.clone(), pattern, focus).into();
+        this.push_history().unwrap_throw();
+        this
+    }
+
+
+    /// Push state to history
+    fn push_history(&self) -> Result<(), JsValue> {
+        let query = js_sys::encode_uri_component(&self.search_pattern);
+        let url = match self.focused_entry {
+            Some(hpath) => format!("?s={}&e={:x}#{}", query, hpath, entry_element_id(hpath)),
+            None => format!("?s={}", query),
         };
-        debug!(format!("new search results: {} entries", result_entries.len()));
-        if push_history {
-            push_history_state(&pattern, focus).unwrap_throw();
-        }
-        Self {
-            services: self.services.clone(),
-            search_pattern: pattern,
-            result_entries,
-            focused_entry: focus,
-        }.into()
+        let window = web_sys::window().unwrap_throw();
+        //TODO Push open/close state
+        window.history()?.push_state_with_url(&JsValue::NULL, &"", Some(&url))
     }
 }
 
 impl Reducible for AppState {
     type Action = AppAction;
 
-    fn reduce(self: Rc<Self>, action: AppAction) -> Rc<Self> {
+    fn reduce(mut self: Rc<Self>, action: AppAction) -> Rc<Self> {
         match action {
             AppAction::ServicesLoaded(services) => {
-                let this: Rc<Self> = Self {
-                    services: services.into(),
-                    .. Default::default()
-                }.into();
-                if !self.search_pattern.is_empty() {
-                    this.search_entries(self.search_pattern.clone(), self.focused_entry, false)
-                } else {
-                    this
-                }
+                // Load the location after initial load, no need to preserve current state
+                Self::from_location(services.into()).unwrap_throw().into()
             }
 
             AppAction::SearchEntries(pattern) => {
                 info!(format!("search entries: {:?}", pattern));
-                self.search_entries(pattern, None, true)
+                self.search_and_push(pattern, None)
             }
 
             AppAction::FollowLink(hpath) => {
                 info!(format!("follow link: {:x}", hpath));
                 if self.result_entries.contains(&hpath) {
-                    set_location_hash(hpath).unwrap_throw();
+                    Rc::make_mut(&mut self).focused_entry = Some(hpath);
+                    self.push_history().unwrap_throw();
                     self
                 } else {
                     // It could be nice to load the file, but it may have too many entries.
                     // Use a safe and predictable, behavior.
                     let hstr = hpath.try_str(&self.services.hmappers);
                     let pattern = format!("{}", hstr);
-                    self.search_entries(pattern, Some(hpath), true)
+                    self.search_and_push(pattern, Some(hpath))
                 }
             }
 
@@ -116,12 +142,17 @@ impl Reducible for AppState {
                 // No type should match an entry, so this should be fine
                 let hstr = htype.try_str(&self.services.hmappers);
                 let pattern = format!("{}", hstr);
-                self.search_entries(pattern, None, true)
+                self.search_and_push(pattern, None)
             }
 
             AppAction::FilterFile(file) => {
                 info!(format!("filter file: {}", &file));
-                self.search_entries(file, None, true)
+                self.search_and_push(file, None)
+            }
+
+            AppAction::LoadHistoryState => {
+                //TODO Don't re-search, use the state
+                Self::from_location(self.services.clone()).unwrap_throw().into()
             }
         }
     }
@@ -133,32 +164,42 @@ pub type AppContext = Rc<Services>;
 
 #[function_component(App)]
 pub fn app() -> Html {
-    let state = use_reducer(|| {
-        let pattern = get_location_query().unwrap_throw();
-        AppState::with_pattern(pattern.unwrap_or_default())
-    });
-    {
+    // Note: URL is loaded after services are loaded
+    let state = use_reducer(AppState::default);
+    use_memo({
         let state = state.clone();
-        use_memo(move |_| {
+        move |_| {
             yew::platform::spawn_local(async move {
                 let services = Services::load().await;
                 state.dispatch(AppAction::ServicesLoaded(services));
             });
-        }, ());
-    }
+        }
+    }, ());
 
-    let on_search = {
+    let on_search = Callback::from({
         let state = state.clone();
-        Callback::from(move |value| state.dispatch(AppAction::SearchEntries(value)))
-    };
+        move |value| state.dispatch(AppAction::SearchEntries(value))
+    });
 
-    let dispatch = {
+    let dispatch = Callback::from({
         let state = state.clone();
-        Callback::from(move |action| state.dispatch(action))
-    };
+        move |action| state.dispatch(action)
+    });
 
     let services = state.services.clone();
     let focused_entry = state.focused_entry;
+
+    // Setup listener for history change
+    use_effect_with_deps({
+        let state = state.clone();
+        move |_| {
+            let window = web_sys::window().unwrap_throw();
+            let listener: Closure<dyn FnMut()> = Closure::new(move || state.dispatch(AppAction::LoadHistoryState));
+            window.add_event_listener_with_callback("popstate", listener.as_ref().unchecked_ref()).unwrap_throw();
+
+            move || drop(listener)
+        }
+    }, ());
 
     html! {
         <ContextProvider<AppContext> context={services.clone()}>
@@ -203,30 +244,5 @@ fn html_result_count(state: &AppState) -> Html {
             <b>{ results_count }</b>{" results out of "}<b>{ entry_count }</b>{" entries"}
         </div>
     }
-}
-
-/// Set URL hash, to jump to the given entry
-fn set_location_hash(hpath: BinEntryPath) -> Result<(), JsValue> {
-    let window = web_sys::window().unwrap_throw();
-    window.location().set_hash(&format!("#{}", entry_element_id(hpath)))
-}
-
-/// Get current query items
-fn get_location_query() -> Result<Option<String>, JsValue> {
-    let window = web_sys::window().unwrap_throw();
-    let search = window.location().search()?;
-    let pattern = web_sys::UrlSearchParams::new_with_str(&search)?.get("s");
-    Ok(pattern)
-}
-
-/// Push a new URL, with given query and optional hash
-fn push_history_state(pattern: &str, hpath: Option<BinEntryPath>) -> Result<(), JsValue> {
-    let query = js_sys::encode_uri_component(pattern);
-    let url = match hpath {
-        Some(hpath) => format!("?s={}#{}", query, entry_element_id(hpath)),
-        None => format!("?s={}", query),
-    };
-    let window = web_sys::window().unwrap_throw();
-    window.history()?.push_state_with_url(&JsValue::NULL, &"", Some(&url))
 }
 

@@ -92,8 +92,9 @@ a:hover {
 
 
 .bin-entry-path { color: #000060; }
+.bin-entry-path:hover { background-color: #e0e0ff; }
 .bin-entry-type { color: #004000; cursor: pointer; }
-.bin-entry-type:hover { background-color: #d0ffd0; }
+.bin-entry-type:hover { background-color: #e0ffe0; }
 .bin-entry-file { color: #b0b0b0; cursor: pointer; }
 .bin-entry-file:hover { background-color: #f0f0f0; }
 .bin-container-type { color: #003000; }
@@ -101,7 +102,7 @@ a:hover {
 .bin-field-name { color: #000080; }
 .bin-field-type { color: #006000; }
 .bin-link-value { color: #800000; cursor: pointer; }
-.bin-link-value:hover { background-color: #ffd0d0; }
+.bin-link-value:hover { background-color: #ffe0e0; }
 .bin-hash-value { }
 .bin-path-value { }
 .bin-color-value-preview {

@@ -15,7 +15,7 @@ lru = "0.11"
 yew = { version = "0.20", features = ["csr"] }
 js-sys = "0.3"
 wasm-bindgen = "0.2"
-web-sys = { version = "0.3", features = ["HtmlInputElement", "DomTokenList", "History", "UrlSearchParams"] }
+web-sys = { version = "0.3", features = ["HtmlInputElement", "DomTokenList", "History", "UrlSearchParams", "EventTarget"] }
 regex = "1"
 thiserror = "1"
 byteorder = "1"
