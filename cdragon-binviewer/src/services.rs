@@ -39,6 +39,16 @@ impl Default for Services {
     }
 }
 
+/// Compare service by pointer
+///
+/// This is enough and suited to use with `Rc`
+impl PartialEq for Services {
+    fn eq(&self, other: &Self) -> bool {
+        std::ptr::eq(self, other)
+    }
+}
+
+
 impl Services {
     /// Load services data, asynchronously
     pub async fn load() -> Self {
