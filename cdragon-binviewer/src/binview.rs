@@ -3,7 +3,10 @@ use yew::events::MouseEvent;
 use web_sys::Element;
 use wasm_bindgen::JsCast;
 use cdragon_prop::*;
-use crate::settings;
+use crate::{
+    settings,
+    utils::*,
+};
 
 /// Toggle a header's `collapsed` class, to be used in callbacks
 fn header_toggle_collapse(e: MouseEvent) {
@@ -304,9 +307,11 @@ impl BinViewable for BinEmbed {
 
 impl_viewable!(BinLink, BinType::Link, (this, b) => {
     let path = this.0;
-    let onclick = b.on_link_click.reform(move |_| path);
+    let onclick = handle_normal_click(b.on_link_click.reform(move |_| path));
+    let hstr = path.try_str(b.hash_mappers);
+    let href = build_app_url(&format!("{}", hstr), Some(path));
     html! {
-        <span class="bin-link-value" {onclick}>{ b.format_entry_path(path) }</span>
+        <a class="bin-link-value" {href} {onclick}>{ b.format_entry_path(path) }</a>
     }
 });
 

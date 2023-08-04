@@ -6,6 +6,7 @@ mod hooks;
 mod services;
 mod components;
 mod binview;
+mod utils;
 
 use std::rc::Rc;
 use gloo_console::{info, error};
@@ -16,12 +17,11 @@ use wasm_bindgen::{
     UnwrapThrowExt,
     closure::Closure,
 };
-use web_sys::UrlSearchParams;
 use cdragon_prop::data::*;
-use cdragon_utils::hashes::HashDef;
 
 use services::Services;
 use components::*;
+use utils::*;
 
 type Result<T, E = Box<dyn std::error::Error>> = std::result::Result<T, E>;
 
@@ -33,10 +33,6 @@ pub enum AppAction {
     SearchEntries(String),
     /// Load given entry (if needed) then focus it
     FollowLink(BinEntryPath),
-    /// Load entries of the given type
-    FilterEntryType(BinClassName),
-    /// Load entries of the given file
-    FilterFile(String),
     /// Load given history state
     LoadHistoryState,
 }
@@ -55,13 +51,9 @@ pub struct AppState {
 
 impl AppState {
     /// Parse search from location, search and return a new instance
-    fn from_location(services: Rc<Services>) -> Result<Self, JsValue> {
-        let window = web_sys::window().unwrap_throw();
-        let search = window.location().search()?;
-        let params = UrlSearchParams::new_with_str(&search)?;
-        let pattern = params.get("s").unwrap_or_default();
-        let focus = params.get("e").and_then(|s| u32::from_str_radix(&s, 16).ok().map(BinEntryPath::new));
-        Ok(Self::from_search(services, pattern, focus))
+    fn from_location(services: Rc<Services>) -> Self {
+        let (pattern, focus) = parse_app_url();
+        Self::from_search(services, pattern, focus)
     }
 
     /// Search and return a new instance
@@ -82,7 +74,6 @@ impl AppState {
             services,
             search_pattern: pattern,
             result_entries,
-            //XXX Keep previously opened entries?
             focused_entry: focus,
         }
     }
@@ -96,14 +87,9 @@ impl AppState {
 
     /// Push state to history
     fn push_history(&self) -> Result<(), JsValue> {
-        let query = js_sys::encode_uri_component(&self.search_pattern);
-        let url = match self.focused_entry {
-            Some(hpath) => format!("?s={}&e={:x}#{}", query, hpath, entry_element_id(hpath)),
-            None => format!("?s={}", query),
-        };
+        let url = build_app_url(&self.search_pattern, self.focused_entry);
         let window = web_sys::window().unwrap_throw();
-        //TODO Push open/close state
-        window.history()?.push_state_with_url(&JsValue::NULL, &"", Some(&url))
+        window.history()?.push_state_with_url(&JsValue::NULL, "", Some(&url))
     }
 }
 
@@ -114,7 +100,7 @@ impl Reducible for AppState {
         match action {
             AppAction::ServicesLoaded(services) => {
                 // Load the location after initial load, no need to preserve current state
-                Self::from_location(services.into()).unwrap_throw().into()
+                Self::from_location(services.into()).into()
             }
 
             AppAction::SearchEntries(pattern) => {
@@ -137,22 +123,8 @@ impl Reducible for AppState {
                 }
             }
 
-            AppAction::FilterEntryType(htype) => {
-                info!(format!("filter entry type {:x}", htype));
-                // No type should match an entry, so this should be fine
-                let hstr = htype.try_str(&self.services.hmappers);
-                let pattern = format!("{}", hstr);
-                self.search_and_push(pattern, None)
-            }
-
-            AppAction::FilterFile(file) => {
-                info!(format!("filter file: {}", &file));
-                self.search_and_push(file, None)
-            }
-
             AppAction::LoadHistoryState => {
-                //TODO Don't re-search, use the state
-                Self::from_location(self.services.clone()).unwrap_throw().into()
+                Self::from_location(self.services.clone()).into()
             }
         }
     }

@@ -11,6 +11,7 @@ use crate::{
     AppAction,
     binview::{BinViewBuilder, view_binfield},
     hooks::use_async,
+    utils::*,
 };
 
 
@@ -32,11 +33,16 @@ enum State {
 }
 
 impl State {
-    fn displayed_entry(&self) -> Option<&BinEntry> {
+    fn entry(&self) -> Option<&BinEntry> {
         match self {
             Self::Opened(entry) => Some(entry),
+            Self::Closed(entry) => Some(entry),
             _ => None,
         }
+    }
+
+    fn closed(&self) -> bool {
+        !matches!(self, Self::Opened(_))
     }
 }
 
@@ -87,17 +93,23 @@ pub fn result_entry(props: &Props) -> Html {
 
     let on_header_click = toggle_entry.reform(|_| ());
 
-    let on_type_click = {
-        let htype = htype;
-        props.dispatch.reform(move |_| AppAction::FilterEntryType(htype))
+    // No type should match an entry, so this should be fine
+    let (type_href, on_type_click) = {
+        let hstr = htype.try_str(&services.hmappers);
+        let pattern = format!("{}", hstr);
+        (
+            build_app_url(&pattern, None),
+            handle_normal_click(props.dispatch.reform(move |_| AppAction::SearchEntries(pattern.clone()))),
+        )
     };
 
-    let on_file_click = {
-        let services = services.clone();
-        props.dispatch.reform(move |_| {
-            let file = services.entrydb.get_filename(ifile).unwrap();
-            AppAction::FilterFile(file.into())
-        })
+    let file = services.entrydb.get_filename(ifile).unwrap();
+    let (file_href, on_file_click) = {
+        let file2 = file.clone();
+        (
+            build_app_url(file, None),
+            handle_normal_click(props.dispatch.reform(move |_| AppAction::SearchEntries(file2.clone()))),
+        )
     };
 
     let on_link_click = props.dispatch.reform(AppAction::FollowLink);
@@ -124,36 +136,35 @@ pub fn result_entry(props: &Props) -> Html {
     }
 
     let mut b = BinViewBuilder::new(&services.hmappers, on_link_click);
-    let file = services.entrydb.get_filename(ifile).unwrap();
-    let entry = state.displayed_entry();
-    let item_class = if entry.is_some() { None } else { Some("collapsed") };
+    let entry = state.entry();
+    let item_class = if state.closed() { Some("closed") } else { None };
     let element_id = entry_element_id(props.hpath);
 
     html! {
         <li>
             <div class="bin-entry" id={element_id}>
-                <div class={classes!("bin-entry-header", "bin-item-header", item_class)}
-                    onclick={on_header_click}>
-                    <span class="bin-entry-path">
+                <div class={classes!("bin-entry-header", "bin-item-header", item_class)}>
+                    <span class="bin-entry-path" onclick={on_header_click}>
                         { b.format_entry_path(props.hpath) }
                     </span>
                     {" "}
-                    <span class="bin-entry-type" onclick={on_type_click}>
+                    <span class="bin-entry-type" onclick={on_type_click} href={type_href}>
                         { b.format_type_name(htype) }
                     </span>
                     {" "}
-                    <span class="bin-entry-file" onclick={on_file_click}>
+                    <a class="bin-entry-file" onclick={on_file_click} href={file_href}>
                         { file }
-                    </span>
+                    </a>
                 </div>
                 {
-                    match entry {
-                        Some(entry) => html! {
+                    if let (false, Some(entry)) = (state.closed(), entry) {
+                       html! {
                             <ul>
                                 { for entry.fields.iter().map(|v| view_binfield(&mut b, v)) }
                             </ul>
-                        },
-                        None => html! {},
+                       }
+                    } else {
+                        html! {}
                     }
                 }
             </div>
@@ -161,10 +172,6 @@ pub fn result_entry(props: &Props) -> Html {
     }
 }
 
-
-pub fn entry_element_id(hpath: BinEntryPath) -> String {
-    format!("entry-{:x}", hpath)
-}
 
 /// Force a URL hash reset
 fn reset_location_hash() -> Result<(), JsValue> {

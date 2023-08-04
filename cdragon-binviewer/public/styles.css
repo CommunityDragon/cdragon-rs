@@ -10,6 +10,9 @@ a {
 a:hover {
   text-decoration: underline;
 }
+a:visited, a:active {
+  color: inherit;
+}
 
 #search {
   margin-bottom: 2ex;
@@ -65,10 +68,6 @@ a:hover {
   margin: 2px;
 }
 
-.bin-item-header {
-  cursor: pointer;
-}
-
 .bin-item-header::before,
 .bin-item-leaf::before {
   content: "\25BC";
@@ -82,16 +81,16 @@ a:hover {
   opacity: 0;
 }
 
-.bin-item-header.collapsed::before {
+.bin-item-header.closed::before {
   transform: rotate(-90deg);  
 }
 
-.bin-item-header.collapsed ~ * {
+.bin-item-header.closed ~ * {
   display: none;
 }
 
 
-.bin-entry-path { color: #000060; }
+.bin-entry-path { color: #000060; cursor: pointer; }
 .bin-entry-path:hover { background-color: #e0e0ff; }
 .bin-entry-type { color: #004000; cursor: pointer; }
 .bin-entry-type:hover { background-color: #e0ffe0; }

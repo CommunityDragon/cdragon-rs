@@ -1,5 +1,5 @@
 pub use searchbar::SearchBar;
-pub use resultentry::{ResultEntry, entry_element_id};
+pub use resultentry::ResultEntry;
 
 mod searchbar {
     use yew::prelude::*;
