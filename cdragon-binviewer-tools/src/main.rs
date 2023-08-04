@@ -1,4 +1,4 @@
-use std::{fs, io};
+use std::io;
 use std::path::{Path, PathBuf};
 use std::collections::{HashSet, HashMap};
 use walkdir::{WalkDir, DirEntry};
@@ -10,6 +10,7 @@ use cdragon_prop::{
     BinClassName,
     PropFile,
 };
+use cdragon_utils::GuardedFile;
 
 type Result<T, E = Box<dyn std::error::Error>> = std::result::Result<T, E>;
 
@@ -128,9 +129,10 @@ fn build_entrydb<P: AsRef<Path>, Q: AsRef<Path>>(root: P, output: Q, verbose: bo
     builder.load_dir(root)?;
 
     let output = output.as_ref();
-    let ofile = fs::File::create(output)?;
-    let writer = io::BufWriter::new(ofile);
-    builder.write(writer)?;
+    GuardedFile::for_scope(output, |file| {
+        let writer = io::BufWriter::new(file);
+        builder.write(writer)
+    })?;
 
     if verbose {
         println!("Database written to {}", output.display()); 

@@ -70,13 +70,10 @@ impl CdnDownloader {
             .error_for_status()?;
         //TODO check if buffering is required for reponse
 
-        let mut gfile = GuardedFile::create(output)?;
-        {
-            let mut writer = BufWriter::new(gfile.as_file_mut());
-            std::io::copy(&mut response, &mut writer)?;
-        }
-        gfile.persist();
-
+        GuardedFile::for_scope(output, |file| {
+            let mut writer = BufWriter::new(file);
+            std::io::copy(&mut response, &mut writer)
+        })?;
         Ok(())
     }
 

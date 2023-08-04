@@ -1,6 +1,7 @@
 use std::fs::{self, File, OpenOptions};
 use std::path::{Path, PathBuf};
 
+
 /// Open a temporary file for writing, remove it unless explicitely kept
 ///
 /// Parent directory is created if needed.
@@ -13,6 +14,17 @@ pub struct GuardedFile<P: AsRef<Path>> {
 }
 
 impl<P: AsRef<Path>> GuardedFile<P> {
+    /// Wrap a function using a file, to use a file
+    ///
+    /// Note: an `std::io::Result` is expected because returning another type would require a
+    /// wrapper `Error` class which would make it complex for the caller too.
+    pub fn for_scope<T, F: FnOnce(&mut File) -> std::io::Result<T>>(path: P, f: F) -> std::io::Result<T> {
+        let mut gfile = Self::create(path)?;
+        let result = f(gfile.as_file_mut())?;
+        gfile.persist();
+        Ok(result)
+    }
+
     /// Open file using given options
     ///
     /// Create parent directory if needed

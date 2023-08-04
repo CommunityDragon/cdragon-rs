@@ -6,6 +6,7 @@ use std::path::Path;
 use std::hash::Hash;
 use num_traits::Num;
 use thiserror::Error;
+use crate::GuardedFile;
 
 type Result<T, E = HashError> = std::result::Result<T, E>;
 
@@ -96,7 +97,7 @@ impl<T> HashMapper<T> where T: Num + Eq + Hash {
 
 impl<T> HashMapper<T> where T: Num + Eq + Hash + fmt::LowerHex {
     /// Write hash map to a writer
-    pub fn write<W: Write>(&self, writer: &mut W) -> Result<()> {
+    pub fn write<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
         let mut entries: Vec<_> = self.map.iter().collect();
         entries.sort_by_key(|kv| kv.1);
         for (h, s) in entries {
@@ -106,10 +107,10 @@ impl<T> HashMapper<T> where T: Num + Eq + Hash + fmt::LowerHex {
     }
 
     /// Write hash map to a file
-    pub fn write_path<P: AsRef<Path>>(&self, path: P) -> Result<()> {
-        let file = File::create(&path)?;
-        self.write(&mut BufWriter::new(file))?;
-        Ok(())
+    pub fn write_path<P: AsRef<Path>>(&self, path: P) -> std::io::Result<()> {
+        GuardedFile::for_scope(path, |file| {
+            self.write(&mut BufWriter::new(file))
+        })
     }
 }
 

@@ -10,7 +10,10 @@ use cdragon_prop::{
     BinVisitor,
     data::*,
 };
-use cdragon_utils::hashes::HashError;
+use cdragon_utils::{
+    GuardedFile,
+    hashes::HashError,
+};
 
 #[derive(Default)]
 pub struct CollectHashesVisitor {
@@ -96,11 +99,13 @@ pub fn load_unknown(path: PathBuf) -> Result<BinHashSets, HashError> {
 pub fn write_unknown(path: PathBuf, hashes: &BinHashSets) -> Result<(), HashError> {
     std::fs::create_dir_all(&path)?;
     for kind in BinHashKind::variants() {
-        let file = File::create(path.join(unknown_path(kind)))?;
-        let mut writer = BufWriter::new(file);
-        for hash in hashes.get(kind).iter() {
-            writeln!(writer, "{:08x}", hash)?;
-        }
+        GuardedFile::for_scope(path.join(unknown_path(kind)), |file| {
+            let mut writer = BufWriter::new(file);
+            for hash in hashes.get(kind).iter() {
+                writeln!(writer, "{:08x}", hash)?;
+            }
+            Ok(())
+        })?;
     }
     Ok(())
 }

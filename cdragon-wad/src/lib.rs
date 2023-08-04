@@ -196,10 +196,10 @@ impl<R: Read + Seek> WadReader<R> {
 
     /// Extract an entry to the given path
     pub fn extract_entry(&mut self, entry: &WadEntry, path: &Path) -> Result<()> {
-        let mut gfile = GuardedFile::create(path)?;
         let mut reader = self.read_entry(entry)?;
-        std::io::copy(&mut *reader, gfile.as_file_mut())?;
-        gfile.persist();
+        GuardedFile::for_scope(path, |file| {
+            std::io::copy(&mut *reader, file)
+        })?;
         Ok(())
     }
 
