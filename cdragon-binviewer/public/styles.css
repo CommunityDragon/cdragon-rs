@@ -10,9 +10,6 @@ a {
 a:hover {
   text-decoration: underline;
 }
-a:visited, a:active {
-  color: inherit;
-}
 
 #search {
   margin-bottom: 2ex;
@@ -40,6 +37,10 @@ a:visited, a:active {
   margin: 0.5em 1em;
 }
 
+#result-count {
+  font-size: 80%;
+}
+
 
 #bindata-content {
   margin: 0;
@@ -49,11 +50,13 @@ a:visited, a:active {
 #bindata-content ul {
   list-style: none;
   padding-left: 1em;
+  overflow: clip;
 }
 
 .bin-entry-header {
   font-size: 105%;
   font-weight: bold;
+  white-space: nowrap;
 }
 
 #bindata-content li {

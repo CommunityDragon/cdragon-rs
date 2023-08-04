@@ -12,10 +12,10 @@ use crate::{
 fn header_toggle_collapse(e: MouseEvent) {
     if let Some(e) = e.target().and_then(|e| e.dyn_into::<Element>().ok()) {
         let classes = e.class_list();
-        if classes.contains("collapsed") {
-            classes.remove_1("collapsed").ok();
+        if classes.contains("closed") {
+            classes.remove_1("closed").ok();
         } else {
-            classes.add_1("collapsed").ok();
+            classes.add_1("closed").ok();
         };
     }
 }

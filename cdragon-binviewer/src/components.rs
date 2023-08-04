@@ -12,6 +12,8 @@ mod searchbar {
         pub on_search: Callback<String>,
     }
 
+    const PLACEHOLDER: &str = "Search entries: path string/hash, type hash, .bin path; prefix with `-` to exclude";
+
     #[function_component(SearchBar)]
     pub fn search_bar(props: &Props) -> Html {
         let value = props.value.clone();
@@ -23,7 +25,7 @@ mod searchbar {
 
         html! {
             <div id="search">
-                <input type="search" placeholder="Search entries" {value} {onchange} />
+                <input type="search" placeholder={PLACEHOLDER} {value} {onchange} />
             </div>
         }
     }
