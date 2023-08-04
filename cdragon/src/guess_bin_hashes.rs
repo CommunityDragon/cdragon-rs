@@ -248,7 +248,7 @@ impl BinHashGuesser {
                 }))
             };
             ($typ:ident.$attr:ident($ty:ty) => $fmt:literal) => {
-                EntryPathPatternHook!($typ.$attr(BinString): arg => $fmt, arg)
+                EntryPathPatternHook!($typ.$attr($ty): arg => $fmt, arg)
             };
             ($typ:ident.$attr:ident: $arg:ident => $fmt:literal, $val:expr) => {
                 EntryPathPatternHook!($typ.$attr(BinString): $arg => $fmt, $val)
