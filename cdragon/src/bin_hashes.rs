@@ -228,8 +228,8 @@ impl<'a> BinVisitor for HashesMatchingEntriesVisitor<'a> {
             if !self.mappers.hash_value.is_known(value.0.hash) && self.mappers.entry_path.is_known(value.0.hash) {
                 let (path, htype) = self.current_entry.unwrap();
                 println!("type {} , path {} , hash {:x}",
-                    htype.try_str(self.mappers),
-                    path.try_str(self.mappers),
+                    htype.seek_str(self.mappers),
+                    path.seek_str(self.mappers),
                     value.0);
             }
         }

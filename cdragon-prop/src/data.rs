@@ -72,7 +72,7 @@ macro_rules! declare_bin_hash {
             pub fn get_str<'a>(&self, mapper: &'a BinHashMappers) -> Option<&'a str> {
                 mapper.get(Self::KIND).get(self.hash)
             }
-            pub fn try_str<'a>(&self, mapper: &'a BinHashMappers) -> HashOrStr<u32, &'a str> {
+            pub fn seek_str<'a>(&self, mapper: &'a BinHashMappers) -> HashOrStr<u32, &'a str> {
                 match self.get_str(mapper) {
                     Some(s) => HashOrStr::Str(s),
                     None => HashOrStr::Hash(self.hash),

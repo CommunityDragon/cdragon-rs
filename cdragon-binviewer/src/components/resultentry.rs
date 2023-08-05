@@ -95,7 +95,7 @@ pub fn result_entry(props: &Props) -> Html {
 
     // No type should match an entry, so this should be fine
     let (type_href, on_type_click) = {
-        let hstr = htype.try_str(&services.hmappers);
+        let hstr = htype.seek_str(&services.hmappers);
         let pattern = format!("{}", hstr);
         (
             build_app_url(&pattern, None),

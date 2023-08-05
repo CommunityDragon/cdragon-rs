@@ -117,7 +117,7 @@ impl Reducible for AppState {
                 } else {
                     // It could be nice to load the file, but it may have too many entries.
                     // Use a safe and predictable, behavior.
-                    let hstr = hpath.try_str(&self.services.hmappers);
+                    let hstr = hpath.seek_str(&self.services.hmappers);
                     let pattern = format!("{}", hstr);
                     self.search_and_push(pattern, Some(hpath))
                 }

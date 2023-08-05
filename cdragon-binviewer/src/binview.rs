@@ -308,7 +308,7 @@ impl BinViewable for BinEmbed {
 impl_viewable!(BinLink, BinType::Link, (this, b) => {
     let path = this.0;
     let onclick = handle_normal_click(b.on_link_click.reform(move |_| path));
-    let hstr = path.try_str(b.hash_mappers);
+    let hstr = path.seek_str(b.hash_mappers);
     let href = build_app_url(&format!("{}", hstr), Some(path));
     html! {
         <a class="bin-link-value" {href} {onclick}>{ b.format_entry_path(path) }</a>

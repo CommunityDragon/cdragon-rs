@@ -49,7 +49,7 @@ impl BinHashFinder {
     }
 
     /// Try to get a string for the given hash
-    pub fn try_str(&self, kind: BinHashKind, hash: u32) -> HashOrStr<u32, &str> {
+    pub fn seek_str(&self, kind: BinHashKind, hash: u32) -> HashOrStr<u32, &str> {
         match self.get_str(kind, hash) {
             Some(s) => HashOrStr::Str(s),
             None => HashOrStr::Hash(hash),
@@ -761,7 +761,7 @@ impl GuessingHook for EntryTypesStatsHook {
     fn on_end(&mut self, finder: &mut BinHashFinder, entries_by_type: &HashMap<BinClassName, Vec<BinEntryPath>>) {
         // Filter out known hashes
         for (ctype, paths) in entries_by_type.iter() {
-            let hstr = finder.try_str(BinHashKind::ClassName, ctype.hash);
+            let hstr = finder.seek_str(BinHashKind::ClassName, ctype.hash);
             let nall = paths.len();
             let nunknown = paths.iter().filter(|h| finder.is_unknown(BinHashKind::EntryPath, h.hash)).count();
             println!("?: {:5} / {:5}  |  {}", nunknown, nall, hstr);
