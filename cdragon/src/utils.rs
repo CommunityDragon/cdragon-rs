@@ -138,17 +138,17 @@ pub fn bin_files_from_dir<P: AsRef<Path>>(root: P) -> impl Iterator<Item=PathBuf
 
 
 /// Trait to visit a directory using a BinVisitor
-pub trait BinDirectoryVisitor: BinVisitor {
+pub trait BinDirectoryVisitor: BinVisitor<Error=()> {
     fn traverse_dir<P: AsRef<Path>>(&mut self, root: P) -> Result<&mut Self, PropError> {
         for path in bin_files_from_dir(root) {
             let scanner = PropFile::scan_entries_from_path(path)?;
             for entry in scanner.parse() {
-                self.traverse_entry(&entry?);
+                self.traverse_entry(&entry?).unwrap();  // never fails
             }
         }
         Ok(self)
     }
 }
 
-impl<T> BinDirectoryVisitor for T where T: BinVisitor + ?Sized {}
+impl<T> BinDirectoryVisitor for T where T: BinVisitor<Error=()> + ?Sized {}
 

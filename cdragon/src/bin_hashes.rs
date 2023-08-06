@@ -28,39 +28,43 @@ impl CollectHashesVisitor {
 }
 
 impl BinVisitor for CollectHashesVisitor {
+    type Error = ();
+
     // Note: Don't collect WAD paths (BinPath)
 
     fn visit_type(&mut self, btype: BinType) -> bool {
         btype == BinType::Hash || btype == BinType::Link || btype.is_nested()
     }
 
-    fn visit_entry(&mut self, value: &BinEntry) -> bool {
+    fn visit_entry(&mut self, value: &BinEntry) -> Result<bool, ()> {
         self.hashes.entry_path.insert(value.path.hash);
         self.hashes.class_name.insert(value.ctype.hash);
-        true
+        Ok(true)
     }
 
-    fn visit_field(&mut self, value: &BinField) -> bool {
+    fn visit_field(&mut self, value: &BinField) -> Result<bool, ()> {
         self.hashes.field_name.insert(value.name.hash);
-        self.visit_type(value.vtype)
+        Ok(self.visit_type(value.vtype))
     }
 
-    fn visit_hash(&mut self, value: &BinHash) {
+    fn visit_hash(&mut self, value: &BinHash) -> Result<(), ()> {
         self.hashes.hash_value.insert(value.0.hash);
+        Ok(())
     }
 
-    fn visit_struct(&mut self, value: &BinStruct) -> bool {
+    fn visit_struct(&mut self, value: &BinStruct) -> Result<bool, ()> {
         self.hashes.class_name.insert(value.ctype.hash);
-        true
+        Ok(true)
     }
 
-    fn visit_embed(&mut self, value: &BinEmbed) -> bool {
+    fn visit_embed(&mut self, value: &BinEmbed) -> Result<bool, ()> {
         self.hashes.class_name.insert(value.ctype.hash);
-        true
+        Ok(true)
     }
 
-    fn visit_link(&mut self, value: &BinLink) {
+    fn visit_link(&mut self, value: &BinLink) -> Result<(), ()> {
         self.hashes.entry_path.insert(value.0.hash);
+        Ok(())
     }
 }
 
@@ -133,14 +137,17 @@ impl CollectStringsVisitor {
 }
 
 impl BinVisitor for CollectStringsVisitor {
+    type Error = ();
+
     fn visit_type(&mut self, btype: BinType) -> bool {
         btype == BinType::String || btype.is_nested()
     }
 
-    fn visit_string(&mut self, value: &BinString) {
+    fn visit_string(&mut self, value: &BinString) -> Result<(), ()> {
         if !self.strings.contains(&value.0) {
             self.strings.insert(value.0.clone());
         }
+        Ok(())
     }
 }
 
@@ -162,22 +169,26 @@ impl<T, F: FnMut(&BinEntry)> SearchBinValueVisitor<T, F> {
 macro_rules! impl_search_bin_value_visitor {
     ($typ:ty, $visit_func:ident) => {
         impl<F: FnMut(&BinEntry)> BinVisitor for SearchBinValueVisitor<$typ, F> {
-            fn traverse_entry(&mut self, entry: &BinEntry) {
+            type Error = ();
+
+            fn traverse_entry(&mut self, entry: &BinEntry) -> Result<(), ()> {
                 self.matched = false;
-                entry.traverse_bin(self);
+                entry.traverse_bin(self)?;
                 if self.matched {
                     (self.on_match)(entry);
                 }
+                Ok(())
             }
 
             fn visit_type(&mut self, btype: BinType) -> bool {
                 !self.matched && (btype == <$typ as BinValue>::TYPE || btype.is_nested())
             }
 
-            fn $visit_func(&mut self, value: &$typ) {
+            fn $visit_func(&mut self, value: &$typ) -> Result<(), ()> {
                 if value == &self.pattern {
                     self.matched = true;
                 }
+                Ok(())
             }
         }
     }
@@ -207,23 +218,25 @@ impl<'a> HashesMatchingEntriesVisitor<'a> {
 }
 
 impl<'a> BinVisitor for HashesMatchingEntriesVisitor<'a> {
+    type Error = ();
+
     fn visit_type(&mut self, btype: BinType) -> bool {
         self.current_entry.is_some() && btype == BinType::Hash || btype.is_nested()
     }
 
-    fn visit_entry(&mut self, value: &BinEntry) -> bool {
+    fn visit_entry(&mut self, value: &BinEntry) -> Result<bool, ()> {
         // Note: each type is checked only once
         // Even if the first entry does not cover all uses of hashes
         if self.types_seen.insert(value.ctype) {
             self.current_entry = Some((value.path, value.ctype));
             self.hashes_seen.clear();
-            true
+            Ok(true)
         } else {
-            false
+            Ok(false)
         }
     }
 
-    fn visit_hash(&mut self, value: &BinHash) {
+    fn visit_hash(&mut self, value: &BinHash) -> Result<(), ()> {
         if self.hashes_seen.insert(value.0) {
             if !self.mappers.hash_value.is_known(value.0.hash) && self.mappers.entry_path.is_known(value.0.hash) {
                 let (path, htype) = self.current_entry.unwrap();
@@ -233,6 +246,7 @@ impl<'a> BinVisitor for HashesMatchingEntriesVisitor<'a> {
                     value.0);
             }
         }
+        Ok(())
     }
 }
 

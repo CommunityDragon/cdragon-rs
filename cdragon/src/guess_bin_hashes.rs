@@ -360,6 +360,8 @@ impl BinHashGuesser {
                 }
 
                 impl<'a> BinVisitor for CheckStrings<'a> {
+                    type Error = ();
+
                     fn visit_type(&mut self, btype: BinType) -> bool {
                         matches!(btype,
                             BinType::String |
@@ -369,13 +371,14 @@ impl BinHashGuesser {
                             BinType::Embed)
                     }
 
-                    fn visit_string(&mut self, value: &BinString) {
+                    fn visit_string(&mut self, value: &BinString) -> Result<(), ()> {
                         self.finder.check_any(BinHashKind::EntryPath, &value.0);
+                        Ok(())
                     }
                 }
 
                 let mut visitor = CheckStrings { finder };
-                entry.traverse_bin(&mut visitor);
+                entry.traverse_bin(&mut visitor).unwrap()
             })
 
             // Guess from ViewControllerSet

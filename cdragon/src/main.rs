@@ -520,7 +520,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let on_match = move |entry: &BinEntry| { serializer.write_entry(entry).unwrap(); };
 
                     use cdragon_prop::data::*;
-                    let mut visitor: Box<dyn BinVisitor> = if subm.get_flag("string") {
+                    let mut visitor: Box<dyn BinVisitor<Error=()>> = if subm.get_flag("string") {
                         Box::new(SearchBinValueVisitor::new(BinString(pattern.clone()), on_match))
                     } else if subm.get_flag("hash") {
                         let hash: BinHashValue = binhash_from_str(pattern).into();
