@@ -24,11 +24,11 @@ pub enum HashError {
 
 /// Store a single hash-to-string association
 #[derive(Default)]
-pub struct HashMapper<T> where T: Num + Eq + Hash {
+pub struct HashMapper<T> where T: Num + Eq + Hash + Copy {
     map: HashMap<T, String>,
 }
 
-impl<T> HashMapper<T> where T: Num + Eq + Hash {
+impl<T> HashMapper<T> where T: Num + Eq + Hash + Copy {
     pub const HASH_LEN: usize = std::mem::size_of::<T>() * 2;
 
     /// Create a new, empty mapping
@@ -77,6 +77,14 @@ impl<T> HashMapper<T> where T: Num + Eq + Hash {
         self.map.get(&hash).map(|v| v.as_ref())
     }
 
+    /// Return a matching string, or the hash
+    pub fn seek(&self, hash: T) -> HashOrStr<T, &str> {
+        match self.map.get(&hash) {
+            Some(s) => HashOrStr::Str(s.as_ref()),
+            None => HashOrStr::Hash(hash),
+        }
+    }
+
     /// Return true if the map is empty
     pub fn is_empty(&self) -> bool {
         self.map.is_empty()
@@ -95,7 +103,7 @@ impl<T> HashMapper<T> where T: Num + Eq + Hash {
     }
 }
 
-impl<T> HashMapper<T> where T: Num + Eq + Hash + fmt::LowerHex {
+impl<T> HashMapper<T> where T: Num + Eq + Hash + Copy + fmt::LowerHex {
     /// Write hash map to a writer
     pub fn write<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
         let mut entries: Vec<_> = self.map.iter().collect();
@@ -121,11 +129,11 @@ impl<T> HashMapper<T> where T: Num + Eq + Hash + fmt::LowerHex {
 /// This allows to define all the hash definitions without implementing the type itself, allowing
 /// one to add its own elements to the type.
 pub trait HashDef: Sized {
-    type T: Sized;  // Integer type
-    const HASHER: fn(&str) -> Self::T;
+    type Hash: Sized;  // Integer type
+    const HASHER: fn(&str) -> Self::Hash;
 
     /// Create a new hash value from an integer
-    fn new(hash: Self::T) -> Self;
+    fn new(hash: Self::Hash) -> Self;
 
     /// Convert a string into a hash value
     #[inline]
@@ -137,23 +145,24 @@ pub trait HashDef: Sized {
     fn is_null(&self) -> bool;
 }
 
+
 /// Wrapper for a hash or its associated string
 ///
 /// Intended to be used for display.
 pub enum HashOrStr<H, S>
-where H: Num + Eq + Hash, S: AsRef<str> {
+where H: Num + Eq + Hash + Copy, S: AsRef<str> {
     Hash(H),
     Str(S),
 
 }
 
 impl<H, S> HashOrStr<H, S>
-where H: Num + Eq + Hash + fmt::LowerHex, S: AsRef<str> {
+where H: Num + Eq + Hash + Copy + fmt::LowerHex, S: AsRef<str> {
     const HASH_LEN: usize = std::mem::size_of::<H>() * 2;
 }
 
 impl<H, S> fmt::Display for HashOrStr<H, S>
-where H: Num + Eq + Hash + fmt::LowerHex, S: AsRef<str> {
+where H: Num + Eq + Hash + Copy + fmt::LowerHex, S: AsRef<str> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Hash(h) => write!(f, "{{{:0w$x}}}", h, w = Self::HASH_LEN),
@@ -177,11 +186,11 @@ macro_rules! declare_hash_type {
         }
 
         impl $crate::hashes::HashDef for $name {
-            type T = $T;
-            const HASHER: fn(&str) -> Self::T = $hasher;
+            type Hash = $T;
+            const HASHER: fn(&str) -> Self::Hash = $hasher;
 
             #[inline]
-            fn new(hash: Self::T) -> Self {
+            fn new(hash: Self::Hash) -> Self {
                 Self { hash }
             }
 

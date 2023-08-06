@@ -58,12 +58,12 @@ impl<'a> PathPattern<'a> {
 /// Match hash value against pattern
 ///
 /// Pattern can be the hex representation of a hash value or a string pattern with `*` wildcards.
-pub enum HashValuePattern<'a, T: Num + Eq + Hash> {
+pub enum HashValuePattern<'a, T: Num + Eq + Hash + Copy> {
     Hash(T),
     Path(PathPattern<'a>),
 }
 
-impl<'a, T: Num + Eq + Hash> HashValuePattern<'a, T> {
+impl<'a, T: Num + Eq + Hash + Copy> HashValuePattern<'a, T> {
     pub fn new(pattern: &'a str) -> Self {
         // If pattern matches a hash value, consider it's a hash
         if pattern.len() == HashMapper::<T>::HASH_LEN {

@@ -1,3 +1,5 @@
+//! Visit a nested bin value
+
 use super::{
     BinEntry,
     data::*,
@@ -14,6 +16,7 @@ use super::{
 /// It is used for default implementations and internal shortcuts.
 pub trait BinVisitor {
     /// Called to visit an entry
+    ///
     /// This method exists so an implementation can execute code after an entry has been visited.
     fn traverse_entry(&mut self, value: &BinEntry) {
         value.traverse_bin(self);
