@@ -1,3 +1,5 @@
+//! Provide `symlink_file` which works on both directories and files on all platforms
+#![allow(dead_code)]
 
 #[cfg(windows)]
 pub fn symlink<P: AsRef<std::path::Path>, Q: AsRef<std::path::Path>>(src: P, dst: Q) -> std::io::Result<()> {

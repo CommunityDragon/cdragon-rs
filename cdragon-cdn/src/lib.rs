@@ -13,6 +13,7 @@ pub use serde_json;
 
 mod guarded_map;
 use guarded_map::GuardedMmap;
+mod fstools;
 
 pub mod storage;
 

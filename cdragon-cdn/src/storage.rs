@@ -19,7 +19,7 @@ use std::io;
 use std::io::{BufReader, Read, Seek};
 use std::path::{Path, PathBuf};
 use cdragon_rman::{Rman, FileBundleRanges, FileEntry};
-use cdragon_utils::fstools::symlink_file;
+use crate::fstools::symlink_file;
 use super::{
     CdnDownloader,
     CdnError,
