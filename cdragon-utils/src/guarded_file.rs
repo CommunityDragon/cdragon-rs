@@ -2,7 +2,7 @@ use std::fs::{self, File, OpenOptions};
 use std::path::{Path, PathBuf};
 
 
-/// Open a temporary file for writing, remove it unless explicitely kept
+/// Open a temporary file for writing, remove it unless explicitely persisted
 ///
 /// Parent directory is created if needed.
 /// File will be created with a temporary `.tmp` suffix.
@@ -27,7 +27,7 @@ impl<P: AsRef<Path>> GuardedFile<P> {
 
     /// Open file using given options
     ///
-    /// Create parent directory if needed
+    /// Create parent directory if needed.
     pub fn create(path: P) -> std::io::Result<Self> {
         let dirname = path.as_ref().parent().expect("invalid file name");
         fs::create_dir_all(dirname)?;
@@ -59,7 +59,7 @@ impl<P: AsRef<Path>> GuardedFile<P> {
 impl<P: AsRef<Path>> Drop for GuardedFile<P> {
     fn drop(&mut self) {
         let _ = fs::remove_file(Self::build_tmp_path(self.path.as_ref()));  // ignore errors
-        // note: file will be close afterwards
+        // note: file will be closed afterwards
     }
 }
 

@@ -1,3 +1,4 @@
+//! Helpers for parsing binary data
 use thiserror::Error;
 
 pub type IResult<I, O> = nom::IResult<I, O, ()>;

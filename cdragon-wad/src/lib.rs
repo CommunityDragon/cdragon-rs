@@ -16,7 +16,7 @@ use cdragon_utils::{
     GuardedFile,
     hashes::{HashMapper, HashError},
     parsing::{ParseError, ReadArray},
-    declare_hash_type,
+    define_hash_type,
     parse_buf,
 };
 
@@ -272,9 +272,9 @@ impl WadEntry {
 }
 
 
-declare_hash_type! {
+define_hash_type! {
     /// Hash used by WAD entries
-    WadEntryHash(u64) => ("{:016x}", compute_entry_hash)
+    WadEntryHash(u64) => compute_entry_hash
 }
 
 pub fn compute_entry_hash(s: &str) -> u64 {

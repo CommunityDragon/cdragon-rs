@@ -6,7 +6,7 @@ use super::{
 };
 use cdragon_utils::{
     hashes::HashOrStr,
-    declare_hash_type,
+    define_hash_type,
 };
 
 
@@ -62,9 +62,9 @@ macro_rules! declare_bin_hash {
         $(#[$meta:meta])*
         $name:ident => $kind:expr
     ) => {
-        declare_hash_type! {
+        define_hash_type! {
             $(#[$meta])*
-            $name(u32) => ("{:08x}", compute_binhash)
+            $name(u32) => compute_binhash
         }
 
         impl $name {
@@ -96,8 +96,8 @@ declare_bin_hash! {
     BinHashValue => BinHashKind::HashValue
 }
 
-declare_hash_type! {
-    BinPathValue(u64) => ("{:16x}", cdragon_wad::compute_entry_hash)
+define_hash_type! {
+    BinPathValue(u64) => cdragon_wad::compute_entry_hash
 }
 impl BinPathValue {
     pub fn get_str<'a>(&self, mapper: &'a BinHashMappers) -> Option<&'a str> {

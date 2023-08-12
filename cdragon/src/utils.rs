@@ -66,7 +66,7 @@ pub enum HashValuePattern<'a, T: Num + Eq + Hash + Copy> {
 impl<'a, T: Num + Eq + Hash + Copy> HashValuePattern<'a, T> {
     pub fn new(pattern: &'a str) -> Self {
         // If pattern matches a hash value, consider it's a hash
-        if pattern.len() == HashMapper::<T>::HASH_LEN {
+        if pattern.len() == std::mem::size_of::<T>() * 2 {
             if let Ok(hash) = T::from_str_radix(pattern, 16) {
                 return Self::Hash(hash);
             }

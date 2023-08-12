@@ -1,3 +1,11 @@
+//! Tools to work with hashes, as used by cdragon
+//!
+//! Actual hash values are created with [define_hash_type], which implements [HashDef] and
+//! conversions.
+//!
+//! [HashMapper] manages a mapping to retrieve a string from a hash value.
+//! The type provides methods to load mapping files, check for known hashes, etc.
+//! update mapping files, etc.
 use std::fmt;
 use std::fs::File;
 use std::io::{BufReader, BufRead, BufWriter, Write};
@@ -11,6 +19,9 @@ use crate::GuardedFile;
 type Result<T, E = HashError> = std::result::Result<T, E>;
 
 
+/// Hash related error
+///
+/// For now, it is only used when parsing hash mappings.
 #[derive(Error, Debug)]
 pub enum HashError {
     #[error(transparent)]
@@ -22,54 +33,24 @@ pub enum HashError {
 }
 
 
-/// Store a single hash-to-string association
+/// Store hash-to-string association for a hash value
+///
+/// A hash mapping can be loaded from and written to files.
+/// Such files store one line per hash, formatted as `<hex-value> <string>`.
 #[derive(Default)]
-pub struct HashMapper<T> where T: Num + Eq + Hash + Copy {
+pub struct HashMapper<T> where T: Hash {
     map: HashMap<T, String>,
 }
 
-impl<T> HashMapper<T> where T: Num + Eq + Hash + Copy {
-    pub const HASH_LEN: usize = std::mem::size_of::<T>() * 2;
+impl<T> HashMapper<T> where T: Eq + Hash + Copy {
+    /// Length of the hexadecimal representation of the hash
+    ///
+    /// Always equal to two times the byte size of the hash value.
+    pub const HASH_HEX_LEN: usize = std::mem::size_of::<T>() * 2;
 
     /// Create a new, empty mapping
     pub fn new() -> Self {
         Self { map: HashMap::<T, String>::new() }
-    }
-
-    /// Create a new mapping, loaded from a reader
-    pub fn from_reader<R: BufRead>(reader: R) -> Result<Self> {
-        let mut this = Self::new();
-        this.load_reader(reader)?;
-        Ok(this)
-    }
-
-    /// Create a new mapping, loaded from a file
-    pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Self> {
-        let mut this = Self::new();
-        this.load_path(&path)?;
-        Ok(this)
-    }
-
-    /// Load hash map from a reader
-    pub fn load_reader<R: BufRead>(&mut self, reader: R) -> Result<(), HashError> {
-        for line in reader.lines() {
-            let l = line.map_err(HashError::Io)?;
-            if l.len() < Self::HASH_LEN + 2 {
-                return Err(HashError::InvalidHashLine(l));
-            }
-            let hash = T::from_str_radix(&l[..Self::HASH_LEN], 16).map_err(|_e| {
-                HashError::InvalidHashValue(l[..Self::HASH_LEN].to_string())
-            })?;
-            self.map.insert(hash, l[Self::HASH_LEN+1..].to_string());
-        }
-        Ok(())
-    }
-
-    /// Load hash map from a file
-    pub fn load_path<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
-        let file = File::open(&path)?;
-        self.load_reader(BufReader::new(file))?;
-        Ok(())
     }
 
     /// Get a value from the mapping
@@ -85,36 +66,74 @@ impl<T> HashMapper<T> where T: Num + Eq + Hash + Copy {
         }
     }
 
-    /// Return true if the map is empty
+    /// Return `true` if the mapping is empty
     pub fn is_empty(&self) -> bool {
         self.map.is_empty()
     }
 
-    /// Return true if the given hash is known
+    /// Return `true` if the given hash is known
     pub fn is_known(&self, hash: T) -> bool {
         self.map.contains_key(&hash)
     }
 
     /// Add a hash to the mapper
     ///
-    /// Note: the caller must ensure the value matches the hash.
+    /// *Important:* the caller must ensure the value matches the hash.
     pub fn insert(&mut self, hash: T, value: String) {
         self.map.insert(hash, value);
     }
 }
 
-impl<T> HashMapper<T> where T: Num + Eq + Hash + Copy + fmt::LowerHex {
-    /// Write hash map to a writer
-    pub fn write<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        let mut entries: Vec<_> = self.map.iter().collect();
-        entries.sort_by_key(|kv| kv.1);
-        for (h, s) in entries {
-            writeln!(writer, "{:0w$x} {}", h, s, w = Self::HASH_LEN)?;
+impl<T> HashMapper<T> where T: Num + Eq + Hash + Copy {
+    /// Create a new mapping, loaded from a reader
+    pub fn from_reader<R: BufRead>(reader: R) -> Result<Self> {
+        let mut this = Self::new();
+        this.load_reader(reader)?;
+        Ok(this)
+    }
+
+    /// Create a new mapping, loaded from a file
+    pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Self> {
+        let mut this = Self::new();
+        this.load_path(&path)?;
+        Ok(this)
+    }
+
+    /// Load hash mapping from a reader
+    pub fn load_reader<R: BufRead>(&mut self, reader: R) -> Result<(), HashError> {
+        for line in reader.lines() {
+            let l = line?;
+            if l.len() < Self::HASH_HEX_LEN + 2 {
+                return Err(HashError::InvalidHashLine(l));
+            }
+            let hash = T::from_str_radix(&l[..Self::HASH_HEX_LEN], 16).map_err(|_e| {
+                HashError::InvalidHashValue(l[..Self::HASH_HEX_LEN].to_string())
+            })?;
+            self.map.insert(hash, l[Self::HASH_HEX_LEN+1..].to_string());
         }
         Ok(())
     }
 
-    /// Write hash map to a file
+    /// Load hash mapping from a file
+    pub fn load_path<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
+        let file = File::open(&path)?;
+        self.load_reader(BufReader::new(file))?;
+        Ok(())
+    }
+}
+
+impl<T> HashMapper<T> where T: Eq + Hash + Copy + fmt::LowerHex {
+    /// Write hash mapping to a writer
+    pub fn write<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
+        let mut entries: Vec<_> = self.map.iter().collect();
+        entries.sort_by_key(|kv| kv.1);
+        for (h, s) in entries {
+            writeln!(writer, "{:0w$x} {}", h, s, w = Self::HASH_HEX_LEN)?;
+        }
+        Ok(())
+    }
+
+    /// Write hash map to a file, atomically
     pub fn write_path<P: AsRef<Path>>(&self, path: P) -> std::io::Result<()> {
         GuardedFile::for_scope(path, |file| {
             self.write(&mut BufWriter::new(file))
@@ -125,9 +144,7 @@ impl<T> HashMapper<T> where T: Num + Eq + Hash + Copy + fmt::LowerHex {
 
 /// Trait for hash values types
 ///
-/// This trait is implemented by types created with `declare_hash_type!`.
-/// This allows to define all the hash definitions without implementing the type itself, allowing
-/// one to add its own elements to the type.
+/// This trait is implemented by types created with `define_hash_type!`.
 pub trait HashDef: Sized {
     type Hash: Sized;  // Integer type
     const HASHER: fn(&str) -> Self::Hash;
@@ -135,9 +152,9 @@ pub trait HashDef: Sized {
     /// Create a new hash value from an integer
     fn new(hash: Self::Hash) -> Self;
 
-    /// Convert a string into a hash value
+    /// Convert a string into a hash by hashing it
     #[inline]
-    fn from_str(s: &str) -> Self {
+    fn hashed(s: &str) -> Self {
         Self::new(Self::HASHER(s))
     }
 
@@ -146,41 +163,45 @@ pub trait HashDef: Sized {
 }
 
 
-/// Wrapper for a hash or its associated string
+/// Either a hash or its associated string
 ///
-/// Intended to be used for display.
+/// This enum is intended to be used along with a [HashMapper] for display.
+/// If string is unknown, the hash value is written as `{hex-value}`
 pub enum HashOrStr<H, S>
-where H: Num + Eq + Hash + Copy, S: AsRef<str> {
+where H: Copy, S: AsRef<str> {
     Hash(H),
     Str(S),
 
 }
 
-impl<H, S> HashOrStr<H, S>
-where H: Num + Eq + Hash + Copy + fmt::LowerHex, S: AsRef<str> {
-    const HASH_LEN: usize = std::mem::size_of::<H>() * 2;
-}
-
 impl<H, S> fmt::Display for HashOrStr<H, S>
-where H: Num + Eq + Hash + Copy + fmt::LowerHex, S: AsRef<str> {
+where H: Copy + fmt::LowerHex, S: AsRef<str> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::Hash(h) => write!(f, "{{{:0w$x}}}", h, w = Self::HASH_LEN),
+            Self::Hash(h) => write!(f, "{{{:0w$x}}}", h, w = std::mem::size_of::<H>() * 2),
             Self::Str(s) => write!(f, "{}", s.as_ref()),
         }
     }
 }
 
 
-/// Declare a hash value type, wrapped into a unique type
+/// Define a hash type wrapping an integer hash value
+///
+/// The created type provides
+/// - a `hash` field, with the hash numeric value
+/// - [HashDef] implementation
+/// - conversion from a string, using the hasher method (`From<&str>` implementation that calls the hasher method
+/// - implicit conversion from/to hash integer type (`From<T>`)
+/// - [std::fmt::Debug] implementation
+/// - [std::fmt::LowerHex] implementation
 #[macro_export]
-macro_rules! declare_hash_type {
+macro_rules! define_hash_type {
     (
         $(#[$meta:meta])*
-        $name:ident($T:ty) => ($fmt:literal, $hasher:expr)
+        $name:ident($T:ty) => $hasher:expr
     ) => {
         $(#[$meta])*
-        #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Copy, Clone)]
+        #[derive(Default, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, Clone)]
         pub struct $name {
             pub hash: $T,
         }
@@ -200,12 +221,6 @@ macro_rules! declare_hash_type {
             }
         }
 
-        impl From<&str> for $name {
-            fn from(s: &str) -> Self {
-                $crate::hashes::HashDef::from_str(s)
-            }
-        }
-
         impl From<$T> for $name {
             fn from(v: $T) -> Self {
                 Self { hash: v }
@@ -214,13 +229,13 @@ macro_rules! declare_hash_type {
 
         impl std::fmt::Debug for $name {
             fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                write!(f, concat!(stringify!($name), "(", $fmt, ")"), self.hash)
+                write!(f, concat!(stringify!($name), "({:x})"), self)
             }
         }
 
         impl std::fmt::LowerHex for $name {
             fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                write!(f, $fmt, self.hash)
+                write!(f, "{:0w$x}", self.hash, w = std::mem::size_of::<$T>() * 2)
             }
         }
     }
