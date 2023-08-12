@@ -1,3 +1,10 @@
+//! Interfaces for serializing bin data to string
+//!
+//! Two serializers are implemented:
+//!
+//! - [JsonSerializer], for JSON serialization, simpler but drop type details
+//! - [TextTreeSerializer], for custom text format that retains detailed type information
+
 use std::io;
 use super::{
     BinEntry,

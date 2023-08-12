@@ -1,7 +1,7 @@
 //! Store files from Riot's CDN
 //!
 //! Files are stored in a directory with the following structure:
-//! ```
+//! ```text
 //! cdragon/  -- cdragon specific files
 //!   extract/  -- files extracted from manifests, one subdirectory per manifest ID
 //!     <manifest-id>/

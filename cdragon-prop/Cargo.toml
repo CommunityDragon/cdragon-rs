@@ -10,5 +10,4 @@ cdragon-wad = { path = "../cdragon-wad" }
 num_enum = "0.6"
 nom = "7"
 thiserror = "1"
-walkdir = "2"
 

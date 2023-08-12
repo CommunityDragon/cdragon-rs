@@ -10,7 +10,6 @@ use cdragon_prop::{
     BinVisitor,
     PropFile,
     compute_binhash,
-    compute_binhash_const,
     binh,
     binget,
 };

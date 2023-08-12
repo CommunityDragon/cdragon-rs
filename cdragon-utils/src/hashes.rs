@@ -1,6 +1,6 @@
 //! Tools to work with hashes, as used by cdragon
 //!
-//! Actual hash values are created with [define_hash_type], which implements [HashDef] and
+//! Actual hash values are created with [crate::define_hash_type!()], which implements [HashDef] and
 //! conversions.
 //!
 //! [HashMapper] manages a mapping to retrieve a string from a hash value.
@@ -58,7 +58,16 @@ impl<T> HashMapper<T> where T: Eq + Hash + Copy {
         self.map.get(&hash).map(|v| v.as_ref())
     }
 
-    /// Return a matching string, or the hash
+    /// Return a matching string (if known) or the hash
+    ///
+    /// Use this method to get a string representation with a fallback for unknown hashes.
+    /// ```
+    /// # use cdragon_utils::hashes::HashMapper;
+    /// let mut mapper = HashMapper::<u16>::new();
+    /// mapper.insert(42, "forty-two".to_string());
+    /// assert_eq!(format!("{}", mapper.seek(42)), "forty-two");
+    /// assert_eq!(format!("{}", mapper.seek(0x1234)), "{1234}");
+    /// ```
     pub fn seek(&self, hash: T) -> HashOrStr<T, &str> {
         match self.map.get(&hash) {
             Some(s) => HashOrStr::Str(s.as_ref()),
@@ -78,7 +87,7 @@ impl<T> HashMapper<T> where T: Eq + Hash + Copy {
 
     /// Add a hash to the mapper
     ///
-    /// *Important:* the caller must ensure the value matches the hash.
+    /// **Important:** the caller must ensure the value matches the hash.
     pub fn insert(&mut self, hash: T, value: String) {
         self.map.insert(hash, value);
     }
@@ -144,7 +153,7 @@ impl<T> HashMapper<T> where T: Eq + Hash + Copy + fmt::LowerHex {
 
 /// Trait for hash values types
 ///
-/// This trait is implemented by types created with `define_hash_type!`.
+/// This trait is implemented by types created with [crate::define_hash_type!()].
 pub trait HashDef: Sized {
     type Hash: Sized;  // Integer type
     const HASHER: fn(&str) -> Self::Hash;

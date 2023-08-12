@@ -1,4 +1,72 @@
-//! Support of PROP files
+//! Support of Riot PROP files
+//!
+//! # Overview
+//!
+//! PROP files, more commonly called *bin* files, contain nested data structures.
+//! All structures are typed and usually abide to the same type, but type is provided in the data
+//! itself, so there is no need to have a schema to decode it.
+//!
+//! Each PROP File contains a list of [entries](BinEntry) which itself contains a nested list of
+//! [fields](BinField) of various [data types](BinType).
+//!
+//! # Dynamic types
+//!
+//! Container types store data whose type is defined dynamically.
+//! Since Rust types are defined statically, they cannot be used directly.
+//! Moreover, even if the embedded bin type is known by the container at run-time, the Rust type
+//! system requires the user to explicitely request a given type, one way or the other.
+//!
+//! The [`binget!()`] macro makes it easier to chain casts and should be enough when the names and
+//! types to get are known in advance.
+//!
+//! Data can also be casted explicitely, using the `downcast()` method provided by
+//! all types wrapping dynamically typed data:
+//! ```no_run
+//! # use cdragon_prop::data::*;
+//! # fn test(field: BinField) {
+//! field.downcast::<BinString>();
+//! # }
+//! // => `Some(BinString)` if field contains a string, `None` otherwise
+//! ```
+//! Containers with fields provide a `getv()` helper to follow a `get()` with a `downcast()`.
+//!
+//! If all possible types have to be handled, the [`binvalue_map_type!()`] can be used to provide a
+//! single generic expression to handle all possible types.
+//!
+//! Map keys support only a subset or types. [`binvalue_map_keytype!()`] can be used to map only
+//! key types. It can be combined with another [`binvalue_map_type!()`] to handle both keys and
+//! values.
+//!
+//! **Note:** those macros are expanded to a `match` handling all possible cases; resulting code can be
+//! large.
+//!
+//! ## Examples
+//! ```
+//! # use cdragon_prop::{binvalue_map_keytype, binvalue_map_type, data::*};
+//! # fn test(field: BinField, map: BinMap) {
+//! binvalue_map_type!(field.vtype, T, {
+//!     let value: &T = field.downcast::<T>().unwrap();
+//! });
+//!
+//! binvalue_map_keytype!(map.ktype, K,
+//!     binvalue_map_type!(map.vtype, V, {
+//!         let entries: &Vec<(K, V)> = map.downcast::<K, V>().unwrap();
+//!     })
+//! );
+//! # }
+//! ```
+//!
+//! # Bin hashes
+//!
+//! Unique identifiers names are stored as 32-bit FNV-1a hashes: [entry paths](BinEntryPath), [class
+//! names](BinClassName), [field names](BinFieldName) and ["bin hash" values](BinHashValue).
+//!
+//! Hash values can be computed with [`compute_binhash()`] or [`compute_binhash_const()`]
+//! (compile-time version). The [`binh!()`] macro can be used with both integers or strings, and
+//! will convert the result into the intended type, making it convenient when a typed value (e.g.
+//! [`BinEntryPath`]) is expected.
+//!
+//! A [`BinHashMappers`] gather all hash-to-string conversion needed by bin data.
 
 mod macros;
 mod parser;
@@ -26,14 +94,14 @@ pub use json::JsonSerializer;
 pub use visitor::{BinVisitor, BinTraversal};
 
 
-
+/// Result type for PROP file errors
 type Result<T, E = PropError> = std::result::Result<T, E>;
 
 
 /// Mapper used for bin hashes
 pub type BinHashMapper = HashMapper<u32>;
 
-/// Generic type to map `BinHashKind`
+/// Generic type to associate each `BinHashKind` to a value
 pub struct BinHashKindMapping<T, U> {
     pub entry_path: T,
     pub class_name: T,
@@ -79,7 +147,10 @@ impl<T: Default, U: Default> Default for BinHashKindMapping<T, U> {
 }
 
 
-/// Mapper for all kinds of bin hashes
+/// Hash mappers for all kinds of bin hashes
+///
+/// Each individual mapper can be accessed either directly through its field, or from a
+/// `BinHashKind` value.
 pub type BinHashMappers = BinHashKindMapping<BinHashMapper, HashMapper<u64>>;
 
 impl BinHashMappers {
@@ -109,14 +180,29 @@ impl BinHashMappers {
     }
 }
 
+/// Set for for all kinds of bin hashes
+///
+/// This type can be used to gather all known or unknown hash values.
 pub type BinHashSets = BinHashKindMapping<HashSet<u32>, HashSet<u64>>;
 
 
 /// PROP file, with entries
+///
+/// This structure contains all the data of a PROP file, completely parsed.
+/// It also provides methods to simply scan an file, without storing all the data, and possibly
+/// skipping unneeded data.
 pub struct PropFile {
+    /// PROP version
     pub version: u32,
+    /// `true` for patch file
+    ///
+    /// Patch files are used to hot-patch data from other, regular files.
+    /// They are usually much slower and a notably used by Riot to update the game without a new
+    /// release (patches are then provided directly by the server when the game starts).
     pub is_patch: bool,
+    /// List of paths to other PROP files
     pub linked_files: Vec<String>,
+    /// List of bin entries
     pub entries: Vec<BinEntry>,
 }
 
@@ -219,6 +305,7 @@ pub const NON_PROP_BASENAMES: &[&str]  = &[
 ];
 
 
+/// Error in a PROP file
 #[derive(Error, Debug)]
 pub enum PropError {
     #[error(transparent)]

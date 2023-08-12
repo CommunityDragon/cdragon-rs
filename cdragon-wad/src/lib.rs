@@ -1,4 +1,24 @@
-//! Support of Rio WAD archive files
+//! Support of Riot WAD archive files
+//!
+//! # Example: list files in wad
+//! ```no_run
+//! use cdragon_wad::{WadFile, WadHashMapper};
+//! let wad = WadFile::open("Global.wad.client").expect("failed to open WAD file");
+//! let hmapper = WadHashMapper::from_path("hashes.game.txt").expect("failed to load hashes");
+//! for entry in wad.iter_entries() {
+//!     let entry = entry.expect("failed to read entry");
+//!     println!("{}", hmapper.get(entry.path.hash).unwrap_or("?"));
+//! }
+//! ```
+//!
+//! [WadHashKind] can be used to use the appropriate hash file (assuming CDragon's files are used).
+//! ```
+//! use cdragon_wad::WadHashKind;
+//! assert_eq!(WadHashKind::from_wad_path("Global.wad.client"), Some(WadHashKind::Game));
+//! assert_eq!(WadHashKind::from_wad_path("assets.wad"), Some(WadHashKind::Lcu));
+//! assert_eq!(WadHashKind::from_wad_path("unknown"), None);
+//! assert_eq!(WadHashKind::Lcu.mapper_path(), "hashes.lcu.txt");
+//! ```
 
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom, BufReader};
@@ -20,13 +40,16 @@ use cdragon_utils::{
     parse_buf,
 };
 
+/// Result type for WAD errors
 type Result<T, E = WadError> = std::result::Result<T, E>;
 
 
 /// Riot WAD archive file
 ///
 /// Store information from the header and list of entries.
+/// To read a WAD file, use [WadFile] or [WadReader].
 pub struct Wad {
+    /// WAD version (`(major, minor)`)
     pub version: (u8, u8),
     entry_count: u32,
     entry_data: Vec<u8>,
@@ -86,7 +109,7 @@ impl Wad {
         Ok((version, entry_count, entry_offset))
     }
 
-    /// Iterate on entries
+    /// Iterate on file entries
     pub fn iter_entries(&self) -> impl Iterator<Item=Result<WadEntry>> + '_ {
         (0..self.entry_count as usize).map(move |i| self.parse_entry(i))
     }
@@ -277,6 +300,7 @@ define_hash_type! {
     WadEntryHash(u64) => compute_entry_hash
 }
 
+/// Compute a hash for a WAD file path
 pub fn compute_entry_hash(s: &str) -> u64 {
     let mut h = XxHash64::with_seed(0);
     h.write(s.as_bytes());
@@ -294,9 +318,11 @@ pub struct WadHashMappers {
 }
 
 /// Enum to describe each set of WAD hashes
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum WadHashKind {
+    /// WAD from launcher (`.wad`)
     Lcu,
+    /// WAD from game files (`.wad.client`)
     Game,
 }
 
@@ -435,6 +461,7 @@ fn guess_extension(reader: &mut dyn Read) -> Option<&'static str> {
 }
 
 
+/// Error in a WAD file
 #[derive(Error, Debug)]
 pub enum WadError {
     #[error(transparent)]

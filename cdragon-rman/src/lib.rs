@@ -1,4 +1,23 @@
 //! Support of RMAN files, Riot manifest files
+//!
+//! Use [Rman] to open an RMAN file and access its content.
+//!
+//! An RMAN file is made of a header and multiple tables (bundles, file names, ...).
+//! When an instance is created, only the headers are read. Tables are then iterated on using the
+//! `iter_*()` methods.
+//!
+//! # Example: list files
+//! ```no_run
+//! # use cdragon_rman::Rman;
+//!
+//! let rman = Rman::open("example.manifest").expect("failed to open or read headers");
+//! // Directories are listed separately from files and their basenames
+//! let dir_paths = rman.dir_paths();
+//! // Iterate on files, print the full paths
+//! for file in rman.iter_files() {
+//!     println!("{}", file.path(&dir_paths));
+//! }
+//! ```
 
 use std::io::{Read, BufReader};
 use std::path::Path;
@@ -15,6 +34,7 @@ use cdragon_utils::{
     parse_buf,
 };
 
+/// Result type for RMAN errors
 type Result<T, E = RmanError> = std::result::Result<T, E>;
 
 

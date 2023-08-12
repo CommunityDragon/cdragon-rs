@@ -10,7 +10,7 @@ use cdragon_utils::{
 };
 
 
-/// Field value for a struct or an embed
+/// Field value for an antry, a struct or an embed
 pub struct BinField {
     pub name: BinFieldName,
     pub vtype: BinType,
@@ -97,6 +97,7 @@ declare_bin_hash! {
 }
 
 define_hash_type! {
+    /// Hash of a `BinPath` value, put to a file in a [cdragon_wad::Wad] archive
     BinPathValue(u64) => cdragon_wad::compute_entry_hash
 }
 impl BinPathValue {

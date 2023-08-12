@@ -12,7 +12,7 @@ use super::{
 /// Visit methods of nested types can return `false` to not visit nested values.
 /// By default, everything is visited.
 ///
-/// `visit_type()` can be used to easily ignore some types.
+/// [`visit_type()`] can be used to easily ignore some types.
 /// It is used for default implementations and internal shortcuts.
 pub trait BinVisitor {
     type Error;
