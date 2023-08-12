@@ -1,4 +1,4 @@
-//! Support of RMAN files
+//! Support of RMAN files, Riot manifest files
 
 use std::io::{Read, BufReader};
 use std::path::Path;
@@ -23,6 +23,11 @@ type Result<T, E = RmanError> = std::result::Result<T, E>;
 /// The body is decompressed and parsed on demand.
 /// Entries are parsed each time they are iterated on.
 /// They should be cached by the caller if needed
+///
+/// # Note on errors
+///
+/// Most reading methods may panic on invalid offsets or invalid data.
+/// This is especially true for the `iter_*()` methods.
 pub struct Rman {
     /// RMAN version (`(major, minor)`)
     ///
@@ -193,8 +198,12 @@ impl Rman {
 ///
 /// # Implementation note
 ///
-/// Body size is guaranteed to fits in a u32, and should always fit in a i32.
-/// Use `i32` for all offsets to simplify use and void numerous casts.
+/// Body size is guaranteed to fits in a `u32`, and should always fit in a `i32`.
+/// Use `i32` for all offsets to simplify use and avoid numerous casts.
+///
+/// # Errors
+///
+/// Parsing methods will panic on attempts to read outside the buffer.
 #[derive(Clone)]
 struct BodyCursor<'a> {
     body: &'a [u8],
@@ -266,7 +275,7 @@ impl<'a> BodyCursor<'a> {
     }
 }
 
-/// Same as BodyCursor, but suited to read indexed fields from entry
+/// Same as [BodyCursor], but suited to read indexed fields from entry
 ///
 /// The first two fields are always:
 /// - the size of the field list itself
@@ -328,7 +337,7 @@ impl<'a> BodyFieldsCursor<'a> {
 
 /// An iterator over invidual entries of an RMAN table
 ///
-/// This `struct` is created by the various `iter_*()` methods on `Rman`.
+/// This struct is created by the various `iter_*()` methods on [Rman].
 pub struct OffsetTableIter<'a, I> {
     cursor: BodyCursor<'a>,
     count: u32,
@@ -336,7 +345,7 @@ pub struct OffsetTableIter<'a, I> {
 }
 
 impl<'a, I> OffsetTableIter<'a, I> {
-    /// Initialize the iterator, read count from the cursor
+    /// Initialize the iterator, read item count from the cursor
     fn new(mut cursor: BodyCursor<'a>, parser: fn(BodyCursor<'a>) -> I) -> Self {
         let count = cursor.read_u32();
         Self { cursor, count, parser }
@@ -444,6 +453,7 @@ pub struct FileChunkRange {
 pub type FileBundleRanges = HashMap<u64, Vec<FileChunkRange>>;
 
 impl<'a> FileEntry<'a> {
+    /// Iterate on the chunks the file is built from
     pub fn iter_chunks(&self) -> FileChunksIter<'a> {
         FileChunksIter::new(self.chunks_cursor.clone())
     }
@@ -514,7 +524,7 @@ impl<'a> Iterator for FileChunksIter<'a> {
 }
 
 
-/// Set of file flags, as a bitmask
+/// Set of RMAN file flags, as a bitmask
 pub struct FileFlagSet {
     mask: u64,
 }
@@ -650,6 +660,7 @@ fn parse_directory_entry(cursor: BodyCursor) -> DirectoryEntry {
 }
 
 
+/// Error in an RMAN file
 #[derive(Error, Debug)]
 pub enum RmanError {
     #[error(transparent)]
