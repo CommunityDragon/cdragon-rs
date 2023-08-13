@@ -289,6 +289,7 @@ pub struct WadEntry {
 }
 
 impl WadEntry {
+    /// Return `true` for a redirection entry
     pub fn is_redirection(&self) -> bool {
         self.data_format == WadDataFormat::Redirection
     }
@@ -313,7 +314,9 @@ pub type WadHashMapper = HashMapper<u64>;
 /// Mapper for all types of WAD path hashes
 #[derive(Default)]
 pub struct WadHashMappers {
+    /// Hash mapper for launcher WAD files
     pub lcu: WadHashMapper,
+    /// Hash mapper for game WAD files
     pub game: WadHashMapper,
 }
 
@@ -382,11 +385,19 @@ impl WadHashMappers {
 
 #[allow(dead_code)]
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
+/// Type of a WAD entry
 pub enum WadDataFormat {
+    /// Uncompressed entry
     Uncompressed,
+    /// Entry compressed with gzip
     Gzip,
+    /// Entry redirection
     Redirection,
+    /// Entry compressed with zstd
     Zstd,
+    /// Entry split into *n* individual zstd-compressed chunks
+    ///
+    /// A "subchunk TOC" is required for such entries.
     Chunked(u8),
 }
 
@@ -462,6 +473,7 @@ fn guess_extension(reader: &mut dyn Read) -> Option<&'static str> {
 
 
 /// Error in a WAD file
+#[allow(missing_docs)]
 #[derive(Error, Debug)]
 pub enum WadError {
     #[error(transparent)]

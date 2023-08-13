@@ -1,6 +1,7 @@
 //! Helpers for parsing binary data
 use thiserror::Error;
 
+/// Type alias for `nom` result type commonly used
 pub type IResult<I, O> = nom::IResult<I, O, ()>;
 
 /// Helper macro to read and parse a buffer with nom
@@ -15,6 +16,7 @@ macro_rules! parse_buf {
 
 /// Helper trait to read a known fix length as an array
 pub trait ReadArray {
+    /// Read into a fixed-size array
     fn read_array<const N: usize>(&mut self) -> std::io::Result<[u8; N]>;
 }
 
@@ -27,6 +29,8 @@ impl<R: std::io::Read> ReadArray for R {
 }
 
 
+/// Parsing error
+#[allow(missing_docs)]
 #[derive(Error, Debug)]
 pub enum ParseError {
     #[error(transparent)]

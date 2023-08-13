@@ -22,6 +22,7 @@ type Result<T, E = HashError> = std::result::Result<T, E>;
 /// Hash related error
 ///
 /// For now, it is only used when parsing hash mappings.
+#[allow(missing_docs)]
 #[derive(Error, Debug)]
 pub enum HashError {
     #[error(transparent)]
@@ -155,7 +156,9 @@ impl<T> HashMapper<T> where T: Eq + Hash + Copy + fmt::LowerHex {
 ///
 /// This trait is implemented by types created with [crate::define_hash_type!()].
 pub trait HashDef: Sized {
-    type Hash: Sized;  // Integer type
+    /// Type of hash values (integer type)
+    type Hash: Sized;
+    /// Hashing method
     const HASHER: fn(&str) -> Self::Hash;
 
     /// Create a new hash value from an integer
@@ -178,9 +181,10 @@ pub trait HashDef: Sized {
 /// If string is unknown, the hash value is written as `{hex-value}`
 pub enum HashOrStr<H, S>
 where H: Copy, S: AsRef<str> {
+    /// Hash value, string is unknown
     Hash(H),
+    /// String value matching the hash
     Str(S),
-
 }
 
 impl<H, S> fmt::Display for HashOrStr<H, S>
@@ -212,6 +216,7 @@ macro_rules! define_hash_type {
         $(#[$meta])*
         #[derive(Default, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, Clone)]
         pub struct $name {
+            /// Hash value
             pub hash: $T,
         }
 

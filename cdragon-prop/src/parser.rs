@@ -116,6 +116,9 @@ impl BinParsable for PropFile {
 pub struct BinEntryScanner<R: Read> {
     reader: R,
     htypes_iter: std::vec::IntoIter<BinClassName>,
+    /// `true` if scanning a patch
+    ///
+    /// See [PropFile::is_patch] for details.
     pub is_patch: bool,
 }
 

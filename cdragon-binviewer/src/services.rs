@@ -159,6 +159,7 @@ async fn fetch_binfile(file: &str) -> Result<Vec<u8>> {
 }
 
 
+#[allow(missing_docs)]
 #[derive(Error, Debug)]
 pub enum BinLoadError {
     #[error("entry not found: {0:?}")]

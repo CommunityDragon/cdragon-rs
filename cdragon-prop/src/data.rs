@@ -1,3 +1,4 @@
+//! Bin data definitions
 use std::any::Any;
 use num_enum::TryFromPrimitive;
 use super::{
@@ -12,12 +13,15 @@ use cdragon_utils::{
 
 /// Field value for an antry, a struct or an embed
 pub struct BinField {
+    /// Field name (hashed)
     pub name: BinFieldName,
+    /// Field value type
     pub vtype: BinType,
     pub(crate) value: Box<dyn Any>,  // Any = vtype
 }
 
 impl BinField {
+    /// Downcast the field value
     pub fn downcast<T: BinValue + 'static>(&self) -> Option<&T> {
         self.value.downcast_ref::<T>()
     }
@@ -26,9 +30,14 @@ impl BinField {
 /// Enum with a variant for each kind of `BinHash`
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
 pub enum BinHashKind {
+    /// Hash of an entry path ([BinEntryPath])
     EntryPath,
+    /// Hash of an class name, used by [entries](BinEntry), [structs](BinStruct) and
+    /// [embeds](BinEmbed) ([BinClassName])
     ClassName,
+    /// Hash of a field name ([BinFieldName])
     FieldName,
+    /// Hash of a has value ([BinHashValue])
     HashValue,
 }
 
@@ -68,10 +77,13 @@ macro_rules! declare_bin_hash {
         }
 
         impl $name {
+            /// Hash kind, for use with [BinHashMappers]
             const KIND: BinHashKind = $kind;
+            /// Get the string associated to the hash
             pub fn get_str<'a>(&self, mapper: &'a BinHashMappers) -> Option<&'a str> {
                 mapper.get(Self::KIND).get(self.hash)
             }
+            /// Get the string associated to the hash or fallback to the hash itself
             pub fn seek_str<'a>(&self, mapper: &'a BinHashMappers) -> HashOrStr<u32, &'a str> {
                 mapper.get(Self::KIND).seek(self.hash)
             }
@@ -80,11 +92,12 @@ macro_rules! declare_bin_hash {
 }
 
 declare_bin_hash! {
-    /// Hash of a bin entry path
+    /// Hash of a [BinEntry] path
     BinEntryPath => BinHashKind::EntryPath
 }
 declare_bin_hash! {
-    /// Hash of a bin class name (used by bin objects)
+    /// Hash of a bin class name (type of [entries](BinEntry), [structs](BinStruct) and
+    /// [embeds](BinEmbed))
     BinClassName => BinHashKind::ClassName
 }
 declare_bin_hash! {
@@ -92,31 +105,35 @@ declare_bin_hash! {
     BinFieldName => BinHashKind::FieldName
 }
 declare_bin_hash! {
-    /// Hash of a `BinHash` value
+    /// Hash of a [BinHash] value
     BinHashValue => BinHashKind::HashValue
 }
 
 define_hash_type! {
-    /// Hash of a `BinPath` value, put to a file in a [cdragon_wad::Wad] archive
+    /// Hash of a [BinPath] value, put to a file in a [cdragon_wad::Wad] archive
     BinPathValue(u64) => cdragon_wad::compute_entry_hash
 }
 impl BinPathValue {
+    /// Get the path associated to the hash
     pub fn get_str<'a>(&self, mapper: &'a BinHashMappers) -> Option<&'a str> {
         mapper.path_value.get(self.hash)
     }
+    /// Get the path associated to the hash or fallback to the hash itself
     pub fn seek_str<'a>(&self, mapper: &'a BinHashMappers) -> HashOrStr<u64, &'a str> {
         mapper.path_value.seek(self.hash)
     }
 }
 
 
-/// Trait for values enumerated in `BinType`
+/// Trait for values enumerated in [BinType]
 pub trait BinValue {
+    /// Bin type associated to the value
     const TYPE: BinType;
 }
 
 macro_rules! declare_bintype_struct {
     ($type:ident ($t:ty) [$($d:ident),* $(,)?]) => {
+        #[allow(missing_docs)]
         #[derive(Debug,$($d),*)]
         pub struct $type(pub $t);
         impl From<$t> for $type {
@@ -124,6 +141,7 @@ macro_rules! declare_bintype_struct {
         }
     };
     ($type:ident ($($v:ident: $t:ty),* $(,)?)) => {
+        #[allow(missing_docs)]
         #[derive(Debug)]
         pub struct $type($(pub $t,)*);
         impl From<($($t),*)> for $type {
@@ -150,6 +168,7 @@ declare_bintype_struct!{ BinVec3(a: f32, b: f32, c: f32) }
 declare_bintype_struct!{ BinVec4(a: f32, b: f32, c: f32, d: f32) }
 declare_bintype_struct!{ BinMatrix([[f32; 4]; 4]) [] }
 /// Color bin value (RGBA)
+#[allow(missing_docs)]
 #[derive(Debug)]
 pub struct BinColor { pub r: u8, pub g: u8, pub b: u8, pub a: u8 }
 declare_bintype_struct!{ BinString(String) [Eq,PartialEq,Hash] }
@@ -159,12 +178,17 @@ declare_bintype_struct!{ BinLink(BinEntryPath) [Eq,PartialEq,Hash] }
 declare_bintype_struct!{ BinFlag(bool) [Eq,PartialEq,Hash] }
 
 
+/// List of values, variable size
+///
+/// This type is used for both [BinType::List] and [BinType::List2].
 pub struct BinList {
+    /// Type of values in the list
     pub vtype: BinType,
     pub(crate) values: Box<dyn Any>,  // Any = Vec<vtype>
 }
 
 impl BinList {
+    /// Downcast the list to a vector
     pub fn downcast<T: BinValue + 'static>(&self) -> Option<&Vec<T>> {
         self.values.downcast_ref::<Vec<T>>()
     }
@@ -172,15 +196,19 @@ impl BinList {
 
 /// Bin structure, referenced by pointer
 pub struct BinStruct {
+    /// Class type of the struct
     pub ctype: BinClassName,
+    /// Struct fields
     pub fields: Vec<BinField>,
 }
 
 impl BinStruct {
+    /// Get a field by its name
     pub fn get(&self, name: BinFieldName) -> Option<&BinField> {
         self.fields.iter().find(|f| f.name == name)
     }
 
+    /// Get a field by its name and downcast it
     pub fn getv<T: BinValue + 'static>(&self, name: BinFieldName) -> Option<&T> {
         self.get(name).and_then(|field| field.downcast::<T>())
     }
@@ -188,15 +216,19 @@ impl BinStruct {
 
 /// Bin structure whose data is embedded directly
 pub struct BinEmbed {
+    /// Class type of the embed
     pub ctype: BinClassName,
+    /// Embed fields
     pub fields: Vec<BinField>,
 }
 
 impl BinEmbed {
+    /// Get a field by its name
     pub fn get(&self, name: BinFieldName) -> Option<&BinField> {
         self.fields.iter().find(|f| f.name == name)
     }
 
+    /// Get a field by its name and downcast it
     pub fn getv<T: BinValue + 'static>(&self, name: BinFieldName) -> Option<&T> {
         self.get(name).and_then(|field| field.downcast::<T>())
     }
@@ -204,11 +236,13 @@ impl BinEmbed {
 
 /// Optional bin value
 pub struct BinOption {
+    /// Type of the value in the option
     pub vtype: BinType,
-    pub value: Option<Box<dyn Any>>,  // Any = vtype
+    pub(crate) value: Option<Box<dyn Any>>,  // Any = vtype
 }
 
 impl BinOption {
+    /// Downcast the option
     pub fn downcast<T: BinValue + 'static>(&self) -> Option<&T> {
         match self.value {
             Some(ref v) => Some(v.downcast_ref::<T>()?),
@@ -218,13 +252,17 @@ impl BinOption {
 }
 
 
+/// Map of values, with separate key and value types
 pub struct BinMap {
+    /// Type of map keys
     pub ktype: BinType,
+    /// Type of map values
     pub vtype: BinType,
     pub(crate) values: Box<dyn Any>,  // Any = Vec<(ktype, vtype)>
 }
 
 impl BinMap {
+    /// Downcast the map to a vector of `(key, value)` pairs
     pub fn downcast<K: BinValue + 'static, V: BinValue + 'static>(&self) -> Option<&Vec<(K, V)>> {
         self.values.downcast_ref::<Vec<(K, V)>>()
     }
@@ -261,7 +299,7 @@ impl BinValue for BinFlag { const TYPE: BinType = BinType::Flag; }
 /// Basic bin types
 ///
 /// Variant values match the binary values used in PROP files.
-#[allow(dead_code)]
+#[allow(dead_code, missing_docs)]
 #[repr(u8)]
 #[derive(Copy, Clone, Eq, PartialEq, TryFromPrimitive, Debug)]
 pub enum BinType {

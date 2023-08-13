@@ -267,6 +267,7 @@ fn serde_error<T: std::fmt::Display>(msg: T) -> serde_json::Error {
 }
 
 
+#[allow(missing_docs)]
 #[derive(Error, Debug)]
 pub enum CdnError {
     #[error(transparent)]

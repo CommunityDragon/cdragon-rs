@@ -12,8 +12,9 @@ use super::{
 /// Visit methods of nested types can return `false` to not visit nested values.
 /// By default, everything is visited.
 ///
-/// [`visit_type()`] can be used to easily ignore some types.
+/// [visit_type()](Self::visit_type()) can be used to easily ignore some types.
 /// It is used for default implementations and internal shortcuts.
+#[allow(missing_docs)]
 pub trait BinVisitor {
     type Error;
 
@@ -70,6 +71,7 @@ pub trait BinVisitor {
 
 /// Interface to traverse nested bin values with a visitor
 pub trait BinTraversal<BV: BinVisitor + ?Sized> {
+    /// Visit the value, recursively
     fn traverse_bin(&self, visitor: &mut BV) -> Result<(), BV::Error>;
 }
 

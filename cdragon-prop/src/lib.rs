@@ -102,6 +102,7 @@ type Result<T, E = PropError> = std::result::Result<T, E>;
 pub type BinHashMapper = HashMapper<u32>;
 
 /// Generic type to associate each `BinHashKind` to a value
+#[allow(missing_docs)]
 pub struct BinHashKindMapping<T, U> {
     pub entry_path: T,
     pub class_name: T,
@@ -237,16 +238,21 @@ pub type BinEntryHeader = (BinEntryPath, BinClassName);
 
 /// Entry in a PROP file
 pub struct BinEntry {
+    /// Entry path (hashed)
     pub path: BinEntryPath,
+    /// Class type of the entry
     pub ctype: BinClassName,
+    /// Struct fields
     pub fields: Vec<BinField>,
 }
 
 impl BinEntry {
+    /// Get a field by its name
     pub fn get(&self, name: BinFieldName) -> Option<&BinField> {
         self.fields.iter().find(|f| f.name == name)
     }
 
+    /// Get a field by its name and downcast it
     pub fn getv<T: BinValue + 'static>(&self, name: BinFieldName) -> Option<&T> {
         self.get(name).and_then(|field| field.downcast::<T>())
     }
@@ -306,6 +312,7 @@ pub const NON_PROP_BASENAMES: &[&str]  = &[
 
 
 /// Error in a PROP file
+#[allow(missing_docs)]
 #[derive(Error, Debug)]
 pub enum PropError {
     #[error(transparent)]

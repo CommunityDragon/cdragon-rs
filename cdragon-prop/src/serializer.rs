@@ -13,6 +13,7 @@ use super::{
 };
 
 /// Serialize bin data
+#[allow(missing_docs)]
 pub trait BinSerializer {
     type EntriesSerializer: BinEntriesSerializer;
 
@@ -64,6 +65,7 @@ pub trait BinSerializer {
 
 /// Serialize streamed bin entries
 pub trait BinEntriesSerializer {
+    /// Serialize an [BinEntry]
     fn write_entry(&mut self, entry: &BinEntry) -> io::Result<()>;
     /// End the serialization
     ///
@@ -82,6 +84,7 @@ pub trait BinSerializable {
 macro_rules! impl_serializable {
     ($type:ty, $func:ident) => {
         impl BinSerializable for $type {
+            /// Serialize the value
             fn serialize_bin<S: BinSerializer>(&self, s: &mut S) -> io::Result<()> {
                 s.$func(self)
             }

@@ -681,6 +681,7 @@ fn parse_directory_entry(cursor: BodyCursor) -> DirectoryEntry {
 
 
 /// Error in an RMAN file
+#[allow(missing_docs)]
 #[derive(Error, Debug)]
 pub enum RmanError {
     #[error(transparent)]

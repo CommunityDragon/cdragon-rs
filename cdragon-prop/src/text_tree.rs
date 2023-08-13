@@ -46,6 +46,7 @@ pub struct TextTreeSerializer<'a, W: Write> {
 }
 
 impl<'a, W: Write> TextTreeSerializer<'a, W> {
+    /// Create a new serializer
     pub fn new(writer: W, hmappers: &'a BinHashMappers) -> Self {
         Self { writer, hmappers, indent: 0 }
     }

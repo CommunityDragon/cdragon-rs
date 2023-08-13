@@ -42,6 +42,7 @@ pub struct JsonSerializer<'a, W: Write> {
 }
 
 impl<'a, W: Write> JsonSerializer<'a, W> {
+    /// Create a new serializer
     pub fn new(writer: W, hmappers: &'a BinHashMappers) -> Self {
         Self { writer, hmappers }
     }
