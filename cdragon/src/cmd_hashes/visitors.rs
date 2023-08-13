@@ -1,17 +1,13 @@
-use std::path::{Path, PathBuf};
-use std::fs::File;
-use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::collections::HashSet;
 use cdragon_prop::{
     BinEntry,
     BinHashMappers,
-    BinHashSets,
     BinTraversal,
     BinVisitor,
+    BinHashSets,
     data::*,
 };
-use cdragon_hashes::HashError;
-use cdragon_utils::GuardedFile;
+
 
 #[derive(Default)]
 pub struct CollectHashesVisitor {
@@ -66,62 +62,6 @@ impl BinVisitor for CollectHashesVisitor {
     }
 }
 
-fn unknown_path(kind: BinHashKind) -> &'static str {
-    match kind {
-        BinHashKind::EntryPath => "unknown.binentries.txt",
-        BinHashKind::ClassName => "unknown.bintypes.txt",
-        BinHashKind::FieldName => "unknown.binfields.txt",
-        BinHashKind::HashValue => "unknown.binhashes.txt",
-    }
-}
-
-fn load_unknown_file<P: AsRef<Path>>(path: P) -> Result<HashSet<u32>, HashError> {
-    let file = File::open(&path)?;
-    let reader = BufReader::new(file);
-    reader.lines()
-        .map(|line| -> Result<u32, HashError> {
-            line.map_err(HashError::Io).and_then(|line| {
-                let line = line.trim_end();
-                u32::from_str_radix(line, 16).map_err(|_| HashError::InvalidHashLine(line.to_owned()))
-            })
-        })
-        .collect()
-}
-
-/// Load unknown hashes from text files in a directory
-pub fn load_unknown(path: PathBuf) -> Result<BinHashSets, HashError> {
-    let mut unknown = BinHashSets::default();
-    for &kind in &BinHashKind::VARIANTS {
-        *unknown.get_mut(kind) = load_unknown_file(path.join(unknown_path(kind)))?;
-    }
-    Ok(unknown)
-}
-
-/// Write (unknown) hashes to text files in a directory
-pub fn write_unknown(path: PathBuf, hashes: &BinHashSets) -> Result<(), HashError> {
-    std::fs::create_dir_all(&path)?;
-    for &kind in &BinHashKind::VARIANTS {
-        GuardedFile::for_scope(path.join(unknown_path(kind)), |file| {
-            let mut writer = BufWriter::new(file);
-            for hash in hashes.get(kind).iter() {
-                writeln!(writer, "{:08x}", hash)?;
-            }
-            Ok(())
-        })?;
-    }
-    Ok(())
-}
-
-/// Remove known hashes from `BinHashSets`
-pub fn remove_known_from_unknown(unknown: &mut BinHashSets, hmappers: &BinHashMappers) {
-    for &kind in &BinHashKind::VARIANTS {
-        let mapper = hmappers.get(kind);
-        unknown.get_mut(kind).retain(|h| !mapper.is_known(*h));
-    }
-}
-
-
-
 #[derive(Default)]
 pub struct CollectStringsVisitor {
     pub strings: HashSet<String>,
@@ -163,6 +103,7 @@ impl<T, F: FnMut(&BinEntry)> SearchBinValueVisitor<T, F> {
         Self { pattern, on_match, matched: false }
     }
 }
+
 
 macro_rules! impl_search_bin_value_visitor {
     ($typ:ty, $visit_func:ident) => {

@@ -1,16 +1,20 @@
-//! Various tools
-
+//! Tools shared by different subcommands
+use std::io;
 use std::hash::Hash;
 use std::path::{Path, PathBuf};
 use num_traits::Num;
 use walkdir::{WalkDir, DirEntry};
 use cdragon_prop::{
     is_binfile_path,
-    BinVisitor,
-    PropError,
-    PropFile,
+    BinHashMappers,
+    JsonSerializer,
+    TextTreeSerializer,
+    BinSerializer,
+    BinEntriesSerializer,
 };
 use cdragon_hashes::HashMapper;
+
+pub type Result<T, E = Box<dyn std::error::Error>> = std::result::Result<T, E>;
 
 
 /// Match strings against pattern with `*` wildcards
@@ -96,7 +100,7 @@ impl<'a, T: Num + Eq + Hash + Copy> HashValuePattern<'a, T> {
 ///
 /// `canonicalize()` is needed to open long files on Windows, but it still fails if the path is too
 /// long. `canonicalize()` the directory name then manually join the file name.
-pub fn canonicalize_path(path: &Path) -> std::io::Result<PathBuf> {
+fn canonicalize_path(path: &Path) -> std::io::Result<PathBuf> {
     if cfg!(target_os = "windows") {
         if let Some(mut parent) = path.parent() {
             if let Some(base) = path.file_name() {
@@ -131,18 +135,12 @@ pub fn bin_files_from_dir<P: AsRef<Path>>(root: P) -> impl Iterator<Item=PathBuf
 }
 
 
-/// Trait to visit a directory using a BinVisitor
-pub trait BinDirectoryVisitor: BinVisitor<Error=()> {
-    fn traverse_dir<P: AsRef<Path>>(&mut self, root: P) -> Result<&mut Self, PropError> {
-        for path in bin_files_from_dir(root) {
-            let scanner = PropFile::scan_entries_from_path(path)?;
-            for entry in scanner.parse() {
-                self.traverse_entry(&entry?).unwrap();  // never fails
-            }
-        }
-        Ok(self)
+/// Create bin entry serializer
+pub fn build_bin_entry_serializer<'a, W: io::Write>(writer: &'a mut W, hmappers: &'a BinHashMappers, json: bool) -> io::Result<Box<dyn BinEntriesSerializer + 'a>> {
+    if json {
+        Ok(Box::new(JsonSerializer::new(writer, hmappers).write_entries()?))
+    } else {
+        Ok(Box::new(TextTreeSerializer::new(writer, hmappers).write_entries()?))
     }
 }
-
-impl<T> BinDirectoryVisitor for T where T: BinVisitor<Error=()> + ?Sized {}
 
