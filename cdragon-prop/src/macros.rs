@@ -51,13 +51,6 @@ macro_rules! binvalue_map_keytype {
     })
 }
 
-/// Convenient helper for const, inline computation of bin hashes
-#[macro_export]
-macro_rules! binh {
-    ($e:expr) => { $crate::compute_binhash_const($e).into() };
-    ($t:ident, $e:literal) => { $t { hash: $crate::compute_binhash_const($e) } };
-}
-
 /// Helper to access nested bin values
 ///
 /// First parameter is the top-level bin value to access.
@@ -92,7 +85,7 @@ macro_rules! binget {
     // `.`: intended to be used to chain field access, but actually ignored
     ($e:expr, . $($tail:tt)*) => { binget!($e, $($tail)*) };
     // `fieldName(Type)`: access field from struct-like
-    ($e:expr, $f:ident($t:ty) $($tail:tt)*) => { binget!($e.getv::<$t>($crate::binh!(stringify!($f)))?, $($tail)*) };
+    ($e:expr, $f:ident($t:ty) $($tail:tt)*) => { binget!($e.getv::<$t>(cdragon_hashes::binh!(stringify!($f)))?, $($tail)*) };
     ($e:expr, $x:literal($t:ty) $($tail:tt)*) => { binget!($e.getv::<$t>($x.into())?, $($tail)*) };
     // `(Type)`: downcast
     ($e:expr, ($t:ty) $($tail:tt)*) => { binget!($e.downcast::<$t>()?, $($tail)*) };

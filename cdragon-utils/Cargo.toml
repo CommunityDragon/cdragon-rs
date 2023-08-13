@@ -5,7 +5,6 @@ authors = ["Benoît Ryder <benoit@ryder.fr>"]
 edition = "2021"
 
 [dependencies]
-num-traits = "0.2"
 nom = "7"
 thiserror = "1"
 

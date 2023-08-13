@@ -15,8 +15,8 @@ use super::{
     binvalue_map_keytype,
     binvalue_map_type,
 };
+use cdragon_hashes::HashDef;
 use cdragon_utils::{
-    hashes::HashDef,
     parsing::{ParseError, IResult, ReadArray},
     parse_buf,
 };

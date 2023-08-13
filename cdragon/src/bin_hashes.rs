@@ -10,10 +10,8 @@ use cdragon_prop::{
     BinVisitor,
     data::*,
 };
-use cdragon_utils::{
-    GuardedFile,
-    hashes::HashError,
-};
+use cdragon_hashes::HashError;
+use cdragon_utils::GuardedFile;
 
 #[derive(Default)]
 pub struct CollectHashesVisitor {
@@ -93,7 +91,7 @@ fn load_unknown_file<P: AsRef<Path>>(path: P) -> Result<HashSet<u32>, HashError>
 /// Load unknown hashes from text files in a directory
 pub fn load_unknown(path: PathBuf) -> Result<BinHashSets, HashError> {
     let mut unknown = BinHashSets::default();
-    for kind in BinHashKind::variants() {
+    for &kind in &BinHashKind::VARIANTS {
         *unknown.get_mut(kind) = load_unknown_file(path.join(unknown_path(kind)))?;
     }
     Ok(unknown)
@@ -102,7 +100,7 @@ pub fn load_unknown(path: PathBuf) -> Result<BinHashSets, HashError> {
 /// Write (unknown) hashes to text files in a directory
 pub fn write_unknown(path: PathBuf, hashes: &BinHashSets) -> Result<(), HashError> {
     std::fs::create_dir_all(&path)?;
-    for kind in BinHashKind::variants() {
+    for &kind in &BinHashKind::VARIANTS {
         GuardedFile::for_scope(path.join(unknown_path(kind)), |file| {
             let mut writer = BufWriter::new(file);
             for hash in hashes.get(kind).iter() {
@@ -116,7 +114,7 @@ pub fn write_unknown(path: PathBuf, hashes: &BinHashSets) -> Result<(), HashErro
 
 /// Remove known hashes from `BinHashSets`
 pub fn remove_known_from_unknown(unknown: &mut BinHashSets, hmappers: &BinHashMappers) {
-    for kind in BinHashKind::variants() {
+    for &kind in &BinHashKind::VARIANTS {
         let mapper = hmappers.get(kind);
         unknown.get_mut(kind).retain(|h| !mapper.is_known(*h));
     }

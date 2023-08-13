@@ -9,11 +9,13 @@ use cdragon_prop::{
     BinTraversal,
     BinVisitor,
     PropFile,
-    compute_binhash,
-    binh,
     binget,
 };
-use cdragon_utils::hashes::HashOrStr;
+use cdragon_hashes::{
+    binh,
+    bin::compute_binhash,
+    HashOrStr,
+};
 use crate::utils::bin_files_from_dir;
 
 

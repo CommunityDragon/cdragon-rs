@@ -1,14 +1,14 @@
 //! Bin data definitions
 use std::any::Any;
 use num_enum::TryFromPrimitive;
-use super::{
-    BinHashMappers,
-    compute_binhash,
-};
-use cdragon_utils::{
-    hashes::HashOrStr,
+use super::BinHashMappers;
+use cdragon_hashes::{
     define_hash_type,
+    HashOrStr,
+    bin::compute_binhash,
+    wad::compute_wad_hash,
 };
+pub use cdragon_hashes::bin::{BinHashKind, BinHashMapper};
 
 
 /// Field value for an antry, a struct or an embed
@@ -24,43 +24,6 @@ impl BinField {
     /// Downcast the field value
     pub fn downcast<T: BinValue + 'static>(&self) -> Option<&T> {
         self.value.downcast_ref::<T>()
-    }
-}
-
-/// Enum with a variant for each kind of `BinHash`
-#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
-pub enum BinHashKind {
-    /// Hash of an entry path ([BinEntryPath])
-    EntryPath,
-    /// Hash of an class name, used by [entries](BinEntry), [structs](BinStruct) and
-    /// [embeds](BinEmbed) ([BinClassName])
-    ClassName,
-    /// Hash of a field name ([BinFieldName])
-    FieldName,
-    /// Hash of a has value ([BinHashValue])
-    HashValue,
-}
-
-impl BinHashKind {
-    /// Return filename used to store the mapping for a `BinHashKind`
-    pub fn mapper_path(&self) -> &'static str {
-        match self {
-            Self::EntryPath => "hashes.binentries.txt",
-            Self::ClassName => "hashes.bintypes.txt",
-            Self::FieldName => "hashes.binfields.txt",
-            Self::HashValue => "hashes.binhashes.txt",
-        }
-    }
-
-    /// Iterate on variants
-    pub fn variants() -> impl Iterator<Item=Self> {
-        static VARIANTS: &[BinHashKind] = &[
-            BinHashKind::EntryPath,
-            BinHashKind::ClassName,
-            BinHashKind::FieldName,
-            BinHashKind::HashValue,
-        ];
-        VARIANTS.iter().copied()
     }
 }
 
@@ -111,7 +74,7 @@ declare_bin_hash! {
 
 define_hash_type! {
     /// Hash of a [BinPath] value, put to a file in a [cdragon_wad::Wad] archive
-    BinPathValue(u64) => cdragon_wad::compute_entry_hash
+    BinPathValue(u64) => compute_wad_hash
 }
 impl BinPathValue {
     /// Get the path associated to the hash

@@ -58,8 +58,12 @@
 //!
 //! # Bin hashes
 //!
-//! Unique identifiers names are stored as 32-bit FNV-1a hashes: [entry paths](BinEntryPath), [class
-//! names](BinClassName), [field names](BinFieldName) and ["bin hash" values](BinHashValue).
+//! Bin files use 32-bit FNV-1a hashes for several identifier names:
+//!
+//! - [entry paths](BinEntryPath)
+//! - [class names](BinClassName)
+//! - [field names](BinFieldName)
+//! - ["bin hash" values](BinHashValue).
 //!
 //! Hash values can be computed with [`compute_binhash()`] or [`compute_binhash_const()`]
 //! (compile-time version). The [`binh!()`] macro can be used with both integers or strings, and
@@ -81,11 +85,10 @@ use std::fs;
 use std::path::Path;
 use std::collections::HashSet;
 use thiserror::Error;
-use cdragon_utils::{
-    hashes::{HashMapper, HashError},
-    parsing::ParseError,
-};
-use cdragon_wad::WadHashKind;
+use cdragon_hashes::{HashMapper, HashError, wad::WadHashKind};
+use cdragon_utils::parsing::ParseError;
+pub use cdragon_hashes::bin::{BinHashKind, BinHashMapper};
+
 pub use serializer::{BinSerializer, BinEntriesSerializer};
 pub use data::*;
 pub use parser::{BinEntryScanner, BinEntryScannerItem};
@@ -97,9 +100,6 @@ pub use visitor::{BinVisitor, BinTraversal};
 /// Result type for PROP file errors
 type Result<T, E = PropError> = std::result::Result<T, E>;
 
-
-/// Mapper used for bin hashes
-pub type BinHashMapper = HashMapper<u32>;
 
 /// Generic type to associate each `BinHashKind` to a value
 #[allow(missing_docs)]
@@ -164,7 +164,7 @@ impl BinHashMappers {
 
     /// Load all sub-mappers from a directory path
     pub fn load_dirpath(&mut self, path: &Path) -> Result<(), HashError> {
-        for kind in BinHashKind::variants() {
+        for &kind in &BinHashKind::VARIANTS {
             self.get_mut(kind).load_path(path.join(kind.mapper_path()))?;
         }
         self.path_value.load_path(path.join(WadHashKind::Game.mapper_path()))?;
@@ -173,7 +173,7 @@ impl BinHashMappers {
 
     /// Write all sub-mappers to a directory path
     pub fn write_dirpath(&self, path: &Path) -> Result<(), HashError> {
-        for kind in BinHashKind::variants() {
+        for &kind in &BinHashKind::VARIANTS {
             self.get(kind).write_path(path.join(kind.mapper_path()))?;
         }
         self.path_value.write_path(path.join(WadHashKind::Game.mapper_path()))?;
@@ -257,49 +257,6 @@ impl BinEntry {
         self.get(name).and_then(|field| field.downcast::<T>())
     }
 }
-
-/// Compute a bin hash from a string
-///
-/// The input string is assumed to be ASCII only.
-/// Use FNV-1a hash, on lowercased input.
-pub fn compute_binhash(s: &str) -> u32 {
-    s.to_ascii_lowercase().bytes()
-        .fold(0x811c9dc5_u32, |h, b| (h ^ b as u32).wrapping_mul(0x01000193))
-}
-
-/// Same as `compute_binhash()` but const
-///
-/// Implementation is less straightforward due to current limited support of const.
-pub const fn compute_binhash_const(s: &str) -> u32 {
-    let mut h = 0x811c9dc5_u32;
-    let bytes = s.as_bytes();
-    let mut i = 0usize;
-    while i < bytes.len() {
-        let b = bytes[i].to_ascii_lowercase();
-        h = (h ^ b as u32).wrapping_mul(0x01000193);
-        i += 1;
-    }
-    h
-}
-
-/// Get a bin hash, either parsed from hex, or computed from a string
-///
-/// A hex hash can be surrounded by braces (e.g. `{012345678}`).
-///
-/// This method can be used to get a hash, known or not, from a user.
-pub fn binhash_from_str(s: &str) -> u32 {
-    let hash = {
-        if s.len() == 8 {
-            u32::from_str_radix(s, 16).ok()
-        } else if s.len() == 10 && s.starts_with('{') & s.ends_with('}') {
-            u32::from_str_radix(&s[1..9], 16).ok()
-        } else {
-            None
-        }
-    };
-    hash.unwrap_or_else(|| compute_binhash(s))
-}
-
 
 /// Files known to not be PROP files, despite their extension
 pub const NON_PROP_BASENAMES: &[&str]  = &[

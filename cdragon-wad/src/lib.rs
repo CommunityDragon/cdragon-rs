@@ -23,7 +23,6 @@
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom, BufReader};
 use std::path::Path;
-use std::hash::Hasher;
 use nom::{
     number::complete::{le_u8, le_u16, le_u32, le_u64},
     bytes::complete::tag,
@@ -31,14 +30,18 @@ use nom::{
     sequence::tuple,
 };
 use thiserror::Error;
-use twox_hash::XxHash64;
+use cdragon_hashes::{
+    define_hash_type,
+    wad::compute_wad_hash,
+    HashError,
+};
 use cdragon_utils::{
     GuardedFile,
-    hashes::{HashMapper, HashError},
     parsing::{ParseError, ReadArray},
-    define_hash_type,
     parse_buf,
 };
+pub use cdragon_hashes::wad::{WadHashKind, WadHashMapper};
+
 
 /// Result type for WAD errors
 type Result<T, E = WadError> = std::result::Result<T, E>;
@@ -298,18 +301,8 @@ impl WadEntry {
 
 define_hash_type! {
     /// Hash used by WAD entries
-    WadEntryHash(u64) => compute_entry_hash
+    WadEntryHash(u64) => compute_wad_hash
 }
-
-/// Compute a hash for a WAD file path
-pub fn compute_entry_hash(s: &str) -> u64 {
-    let mut h = XxHash64::with_seed(0);
-    h.write(s.as_bytes());
-    h.finish()
-}
-
-/// Mapper used for WAD path hashes
-pub type WadHashMapper = HashMapper<u64>;
 
 /// Mapper for all types of WAD path hashes
 #[derive(Default)]
@@ -318,39 +311,6 @@ pub struct WadHashMappers {
     pub lcu: WadHashMapper,
     /// Hash mapper for game WAD files
     pub game: WadHashMapper,
-}
-
-/// Enum to describe each set of WAD hashes
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub enum WadHashKind {
-    /// WAD from launcher (`.wad`)
-    Lcu,
-    /// WAD from game files (`.wad.client`)
-    Game,
-}
-
-impl WadHashKind {
-    /// Return WAD hash kind from a WAD path
-    ///
-    /// The path is assumed to be a "regular" WAD path that follows Riot conventions.
-    pub fn from_wad_path<P: AsRef<Path>>(path: P) -> Option<Self> {
-        let path = path.as_ref().to_str()?;
-        if path.ends_with(".wad.client") {
-            Some(Self::Game)
-        } else if path.ends_with(".wad") {
-            Some(Self::Lcu)
-        } else {
-            None
-        }
-    }
-
-    /// Return filename used to store the mapping of each hash kind
-    pub fn mapper_path(&self) -> &'static str {
-        match self {
-            Self::Lcu => "hashes.lcu.txt",
-            Self::Game => "hashes.game.txt",
-        }
-    }
 }
 
 impl WadHashMappers {

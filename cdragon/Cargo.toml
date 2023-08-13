@@ -6,6 +6,7 @@ edition = "2021"
 
 [dependencies]
 cdragon-cdn = { path = "../cdragon-cdn" }
+cdragon-hashes = { path = "../cdragon-hashes", features = ["bin", "wad"] }
 cdragon-prop = { path = "../cdragon-prop" }
 cdragon-rman = { path = "../cdragon-rman" }
 cdragon-utils = { path = "../cdragon-utils" }

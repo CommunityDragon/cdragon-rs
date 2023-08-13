@@ -13,8 +13,8 @@ use cdragon_prop::{
     BinVisitor,
     TextTreeSerializer,
     JsonSerializer,
-    binhash_from_str,
 };
+use cdragon_hashes::bin::binhash_from_str;
 use cdragon_rman::{
     Rman,
     FileEntry,

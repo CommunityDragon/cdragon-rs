@@ -1,13 +1,16 @@
 [package]
-name = "cdragon-prop"
+name = "cdragon-hashes"
 version = "0.1.0"
 authors = ["Benoît Ryder <benoit@ryder.fr>"]
 edition = "2021"
 
+[features]
+default = ["bin", "wad"]
+bin = []
+wad = ["dep:twox-hash"]
+
 [dependencies]
 cdragon-utils = { path = "../cdragon-utils" }
-cdragon-hashes = { path = "../cdragon-hashes", features = ["bin", "wad"] }
-num_enum = "0.6"
-nom = "7"
+num-traits = "0.2"
 thiserror = "1"
-
+twox-hash = { version = "1.6", optional = true }

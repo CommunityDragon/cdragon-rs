@@ -14,7 +14,12 @@ use std::path::Path;
 use std::hash::Hash;
 use num_traits::Num;
 use thiserror::Error;
-use crate::GuardedFile;
+use cdragon_utils::GuardedFile;
+
+#[cfg(feature = "bin")]
+pub mod bin;
+#[cfg(feature = "wad")]
+pub mod wad;
 
 type Result<T, E = HashError> = std::result::Result<T, E>;
 
@@ -143,7 +148,9 @@ impl<T> HashMapper<T> where T: Eq + Hash + Copy + fmt::LowerHex {
         Ok(())
     }
 
-    /// Write hash map to a file, atomically
+    /// Write hash map to a file
+    ///
+    /// File is upadeted atomically.
     pub fn write_path<P: AsRef<Path>>(&self, path: P) -> std::io::Result<()> {
         GuardedFile::for_scope(path, |file| {
             self.write(&mut BufWriter::new(file))
@@ -220,7 +227,7 @@ macro_rules! define_hash_type {
             pub hash: $T,
         }
 
-        impl $crate::hashes::HashDef for $name {
+        impl $crate::HashDef for $name {
             type Hash = $T;
             const HASHER: fn(&str) -> Self::Hash = $hasher;
 

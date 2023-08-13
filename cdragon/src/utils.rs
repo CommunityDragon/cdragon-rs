@@ -9,7 +9,7 @@ use cdragon_prop::{
     PropError,
     PropFile,
 };
-use cdragon_utils::hashes::HashMapper;
+use cdragon_hashes::HashMapper;
 
 
 /// Match strings against pattern with `*` wildcards
