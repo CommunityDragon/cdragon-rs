@@ -5,7 +5,7 @@ authors = ["Benoît Ryder <benoit@ryder.fr>"]
 edition = "2021"
 
 [dependencies]
-cdragon-utils = { path = "../cdragon-utils" }
+cdragon-utils = { path = "../cdragon-utils", features = ["parsing"] }
 nom = "7"
 thiserror = "1"
 zstd = "0.12"

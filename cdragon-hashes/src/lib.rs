@@ -68,7 +68,7 @@ impl<T> HashMapper<T> where T: Eq + Hash + Copy {
     ///
     /// Use this method to get a string representation with a fallback for unknown hashes.
     /// ```
-    /// # use cdragon_utils::hashes::HashMapper;
+    /// # use cdragon_hashes::HashMapper;
     /// let mut mapper = HashMapper::<u16>::new();
     /// mapper.insert(42, "forty-two".to_string());
     /// assert_eq!(format!("{}", mapper.seek(42)), "forty-two");

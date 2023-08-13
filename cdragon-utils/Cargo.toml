@@ -4,7 +4,12 @@ version = "0.1.0"
 authors = ["Benoît Ryder <benoit@ryder.fr>"]
 edition = "2021"
 
+[features]
+default = []
+parsing = ["dep:nom", "dep:thiserror"]
+guarded_file = []
+
 [dependencies]
-nom = "7"
-thiserror = "1"
+nom = { version = "7", optional = true }
+thiserror = { version = "1", optional = true }
 
