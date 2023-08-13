@@ -267,6 +267,28 @@ pub const NON_PROP_BASENAMES: &[&str]  = &[
     "tftitemlist.bin",
 ];
 
+/// Return `true` if a path is a bin file path
+///
+/// This helper is intended to be used with files extracted by CDragon.
+/// It has several limitations.
+///
+/// - File content is not checked, only path is checkde
+/// - Some PROP files don't have the `.bin` extension, they will not be detected.
+///   (CDragon add the missing extension and thus does not have this problem.)
+/// - Some files have a `.bin` extension but are not actually PROP files.
+///   This helper return `false` for known occurrences.
+pub fn is_binfile_path(path: &Path) -> bool {
+    if let Some(true) = path.extension().map(|s| s == "bin") {
+        if let Some(name) = path.file_name() {
+            // Some files are not actual 'PROP' files
+            return name.to_str()
+                .map(|s| !NON_PROP_BASENAMES.contains(&s))
+                .unwrap_or(false)
+        }
+    }
+    false
+}
+
 
 /// Error in a PROP file
 #[allow(missing_docs)]

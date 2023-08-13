@@ -5,7 +5,7 @@ use walkdir::{WalkDir, DirEntry};
 use clap::{Command, Arg, value_parser};
 use byteorder::{LittleEndian, WriteBytesExt};
 use cdragon_prop::{
-    NON_PROP_BASENAMES,
+    is_binfile_path,
     BinEntryPath,
     BinClassName,
     PropFile,
@@ -15,18 +15,10 @@ use cdragon_utils::GuardedFile;
 type Result<T, E = Box<dyn std::error::Error>> = std::result::Result<T, E>;
 
 
-//XXX Factorize with cdragon/src/main.rs
 fn is_binfile_direntry(entry: &DirEntry) -> bool {
     let ftype = entry.file_type();
     if ftype.is_file() {
-        if entry.path().extension().map(|s| s == "bin").unwrap_or(false) {
-            // Some files are not actual 'PROP' files
-            entry.file_name().to_str()
-                .map(|s| !NON_PROP_BASENAMES.contains(&s))
-                .unwrap_or(false)
-        } else {
-            false
-        }
+        is_binfile_path(entry.path())
     } else {
         ftype.is_dir()
     }

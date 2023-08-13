@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use num_traits::Num;
 use walkdir::{WalkDir, DirEntry};
 use cdragon_prop::{
+    is_binfile_path,
     BinVisitor,
     PropError,
     PropFile,
@@ -113,14 +114,7 @@ pub fn canonicalize_path(path: &Path) -> std::io::Result<PathBuf> {
 fn is_binfile_direntry(entry: &DirEntry) -> bool {
     let ftype = entry.file_type();
     if ftype.is_file() {
-        if entry.path().extension().map(|s| s == "bin").unwrap_or(false) {
-            // Some files are not actual 'PROP' files
-            entry.file_name().to_str()
-                .map(|s| !cdragon_prop::NON_PROP_BASENAMES.contains(&s))
-                .unwrap_or(false)
-        } else {
-            false
-        }
+        is_binfile_path(entry.path())
     } else {
         ftype.is_dir()
     }
