@@ -319,13 +319,12 @@ impl BinViewable for BinOption {
     const NESTED: bool = true;
 
     fn view_value(&self, b: &mut BinViewBuilder) -> Html {
-        match self.value {
-            None => "-".into(),
-            Some(_) => {
-                let v_value = binvalue_map_type!(
-                    self.vtype, T, self.downcast::<T>().unwrap().view_value(b));
-                html! { <div class="bin-option">{ v_value }</div> }
-            }
+        if self.is_some() {
+            let v_value = binvalue_map_type!(
+                self.vtype, T, self.downcast::<T>().unwrap().view_value(b));
+            html! { <div class="bin-option">{ v_value }</div> }
+        } else {
+            "-".into()
         }
     }
 

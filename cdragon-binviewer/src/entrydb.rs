@@ -4,11 +4,14 @@ use std::collections::HashMap;
 use gloo_console::debug;
 use regex::{RegexSet, RegexSetBuilder};
 use byteorder::{LittleEndian, ReadBytesExt};
+use cdragon_hashes::{
+    HashDef,
+    bin::binhash_from_str,
+};
 use cdragon_prop::{
     BinEntryPath,
     BinClassName,
     BinHashMappers,
-    binhash_from_str,
 };
 use crate::Result;
 
@@ -197,8 +200,9 @@ impl EntryDatabase {
     /// Parse a search criteria, using database information to resolve hashes
     fn parse_criteria<'a>(&'a self, word: &'a str) -> SearchCriteria<'a> {
         if let Some(hash) = word.strip_prefix('-') {
-            if self.types.contains(&hash.into()) {
-                SearchCriteria::ExcludeEntryType(hash.into())
+            let htype = BinClassName::hashed(&hash);
+            if self.types.contains(&htype) {
+                SearchCriteria::ExcludeEntryType(htype)
             } else {
                 SearchCriteria::ExcludeEntryPath(hash)
             }

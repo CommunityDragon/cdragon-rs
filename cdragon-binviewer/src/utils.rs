@@ -2,7 +2,7 @@ use web_sys::{MouseEvent, UrlSearchParams};
 use wasm_bindgen::UnwrapThrowExt;
 use yew::callback::Callback;
 use cdragon_prop::data::BinEntryPath;
-use cdragon_utils::hashes::HashDef;
+use cdragon_hashes::HashDef;
 
 /// Pass normal clicks, drop other ones
 ///

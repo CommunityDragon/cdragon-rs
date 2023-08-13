@@ -205,6 +205,11 @@ pub struct BinOption {
 }
 
 impl BinOption {
+    /// Return `true` if the option contains a value
+    pub fn is_some(&self) -> bool {
+        self.value.is_some()
+    }
+
     /// Downcast the option
     pub fn downcast<T: BinValue + 'static>(&self) -> Option<&T> {
         match self.value {
