@@ -4,15 +4,19 @@ version = "0.1.0"
 authors = ["Benoît Ryder <benoit@ryder.fr>"]
 edition = "2021"
 
+[features]
+default = []
+storage = ["dep:pathdiff", "dep:sha1_smol"]
+
 [dependencies]
 cdragon-utils = { path = "../cdragon-utils" }
 cdragon-rman = { path = "../cdragon-rman" }
 memmap = "0.7"
-pathdiff = "0.2"
 reqwest = { version = "0.11", features = ["blocking"] }
 serde = "1"
 serde_json = "1"
-sha1_smol = { version = "1", features = ["std"] }
 thiserror = "1"
 url = "2"
 zstd = "0.12"
+pathdiff = { version = "0.2", optional = true }
+sha1_smol = { version = "1", features = ["std"], optional = true }

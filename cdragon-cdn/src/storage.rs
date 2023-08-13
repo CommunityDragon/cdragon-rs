@@ -1,5 +1,7 @@
 //! Store files from Riot's CDN
 //!
+//! **Warning:** this module is highly experimantal. Do not expect it to work.
+//!
 //! Files are stored in a directory with the following structure:
 //! ```text
 //! cdragon/  -- cdragon specific files

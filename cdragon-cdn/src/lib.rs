@@ -13,8 +13,10 @@ pub use serde_json;
 
 mod guarded_map;
 use guarded_map::GuardedMmap;
+#[cfg(feature = "storage")]
 mod fstools;
 
+#[cfg(feature = "storage")]
 pub mod storage;
 
 type Result<T, E = CdnError> = std::result::Result<T, E>;
