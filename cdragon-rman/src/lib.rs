@@ -400,7 +400,7 @@ impl<'a, I> Iterator for OffsetTableIter<'a, I> {
 pub struct FileFlagEntry<'a> {
     /// Flag ID
     pub id: u8,
-    /// Flag value 
+    /// Flag value
     pub flag: &'a str,
 }
 
@@ -413,7 +413,7 @@ pub struct BundleEntry<'a> {
 }
 
 impl<'a> BundleEntry<'a> {
-    /// Iterate of bundle chunks 
+    /// Iterate of bundle chunks
     pub fn iter_chunks(&self) -> impl Iterator<Item=ChunkEntry> + 'a {
         OffsetTableIter::new(self.cursor.clone(), parse_chunk_entry)
             .scan(0u32, |offset, mut e| {

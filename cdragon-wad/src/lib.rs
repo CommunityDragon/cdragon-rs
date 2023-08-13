@@ -117,7 +117,7 @@ impl Wad {
         (0..self.entry_count as usize).map(move |i| self.parse_entry(i))
     }
 
-    /// Parse entry at given index 
+    /// Parse entry at given index
     fn parse_entry(&self, index: usize) -> Result<WadEntry> {
         let offset = index * Self::ENTRY_LEN;
         let buf = &self.entry_data[offset .. offset + Self::ENTRY_LEN];

@@ -65,10 +65,8 @@
 //! - [field names](BinFieldName)
 //! - ["bin hash" values](BinHashValue).
 //!
-//! Hash values can be computed with [`compute_binhash()`] or [`compute_binhash_const()`]
-//! (compile-time version). The [`binh!()`] macro can be used with both integers or strings, and
-//! will convert the result into the intended type, making it convenient when a typed value (e.g.
-//! [`BinEntryPath`]) is expected.
+//! Hash values can be computed at compile-time with [`cdragon_hashes::binh!()`], or
+//! using other methods from [`cdragon_hashes::bin`].
 //!
 //! A [`BinHashMappers`] gather all hash-to-string conversion needed by bin data.
 

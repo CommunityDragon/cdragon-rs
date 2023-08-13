@@ -51,7 +51,7 @@ use guess_bin_hashes::{
 type Result<T, E = Box<dyn std::error::Error>> = std::result::Result<T, E>;
 
 
-/// Serialize entries from a given bin file path 
+/// Serialize entries from a given bin file path
 fn serialize_bin_path<F: Fn(BinEntryPath, BinClassName) -> bool>(path: &PathBuf, serializer: &mut dyn BinEntriesSerializer, filter: F) -> Result<()> {
     let scanner = PropFile::scan_entries_from_path(path)?;
     scanner.filter_parse(filter).try_for_each(|entry| -> Result<(), _> {

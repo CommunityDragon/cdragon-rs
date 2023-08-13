@@ -15,7 +15,7 @@ impl<P: AsRef<Path>> GuardedMmap<P> {
     pub fn create(path: P, size: u64) -> std::io::Result<Self> {
         let mut gfile = GuardedFile::create(path)?;
         let file = gfile.as_file_mut();
-        file.set_len(size)?; 
+        file.set_len(size)?;
         let mmap = unsafe { MmapMut::map_mut(file)? };
         Ok(Self { gfile, mmap })
     }

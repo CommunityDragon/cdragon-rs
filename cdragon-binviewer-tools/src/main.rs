@@ -127,7 +127,7 @@ fn build_entrydb<P: AsRef<Path>, Q: AsRef<Path>>(root: P, output: Q, verbose: bo
     })?;
 
     if verbose {
-        println!("Database written to {}", output.display()); 
+        println!("Database written to {}", output.display());
         println!("  entries: {}", builder.entries.len());
         println!("  files: {}", builder.files.len());
         println!("  types: {}", builder.types.len());

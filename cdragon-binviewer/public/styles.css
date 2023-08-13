@@ -85,7 +85,7 @@ a:hover {
 }
 
 .bin-item-header.closed::before {
-  transform: rotate(-90deg);  
+  transform: rotate(-90deg);
 }
 
 .bin-item-header.closed ~ * {
@@ -116,7 +116,7 @@ a:hover {
   border: 1px solid #444;
 }
 
-.bin-entry-path, 
+.bin-entry-path,
 .bin-entry-type,
 .bin-entry-file,
 .bin-struct-type,
@@ -151,7 +151,7 @@ a.tooltipped > img {
   z-index: 10;
   max-height: 150px;
   max-width: 150px;
-  position: absolute; 
+  position: absolute;
   left: 0;
   display: none;
   border: 1px solid black;

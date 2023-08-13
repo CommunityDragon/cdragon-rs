@@ -583,7 +583,7 @@ impl GuessingHook for MultiHook {
 }
 
 
-/// Guess hashes from character data: derived pattern, spells 
+/// Guess hashes from character data: derived pattern, spells
 fn on_character_record_entry(entry: &BinEntry, finder: &mut BinHashFinder) {
     let cname = match &binget!(entry => mCharacterName(BinString)) {
         Some(s) => &s.0,
@@ -643,7 +643,7 @@ fn on_character_record_entry(entry: &BinEntry, finder: &mut BinHashFinder) {
     if let Some(names) = binget!(entry => spellNames(BinList)(BinString)) {
         let it = names.iter().map(spell_path);
         finder.check_any_from_iter(BinHashKind::EntryPath, it);
-        // Also check for abilities by removing the basename 
+        // Also check for abilities by removing the basename
         //XXX Do it for ALL spells instead?
         let it = names.iter().filter_map(|name| {
             let parent = name.0.split_once('/')?.0;

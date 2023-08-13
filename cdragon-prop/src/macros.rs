@@ -68,7 +68,7 @@ macro_rules! binvalue_map_keytype {
 /// binget!(entry => mName(BinString));
 /// // Access content of a list field
 /// binget!(entry => mNames(BinList)(BinString));
-/// // Chained field access 
+/// // Chained field access
 /// binget!(entry => mData(BinStruct).mValue(BinU32));
 /// // Access field from hash integer value
 /// binget!(entry => 0x12345678(BinString));

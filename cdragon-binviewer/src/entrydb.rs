@@ -165,7 +165,7 @@ impl EntryDatabase {
             .filter(move |(hpath, (htype, findex))| {
                 let file = &self.filenames[*findex];
                 // Don't bother too much using a "smart" filtering
-                // Keep in my that results are "truncated". 
+                // Keep in my that results are "truncated".
                 (criterias.entry_types.is_empty() || criterias.entry_types.contains(htype)) &&
                 !criterias.excluded_entry_types.contains(htype) &&
                 (criterias.entry_hpaths.is_empty() || criterias.entry_hpaths.contains(hpath)) &&

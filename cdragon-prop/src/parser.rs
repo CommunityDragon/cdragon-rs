@@ -391,7 +391,6 @@ where R: Read {
             }
             Err(err) => Some(Err(err)),
         }
-        
     }
 
     fn read_entry(&mut self, path: BinEntryPath, ctype: BinClassName) -> Result<BinEntry> {
