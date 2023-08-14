@@ -5,10 +5,10 @@ use super::BinHashMappers;
 use cdragon_hashes::{
     define_hash_type,
     HashOrStr,
-    bin::compute_binhash,
+    bin::{BinHashKind, compute_binhash},
     wad::compute_wad_hash,
 };
-pub use cdragon_hashes::bin::{BinHashKind, BinHashMapper};
+pub use cdragon_hashes::bin::BinHashMapper;
 
 
 /// Field value for an antry, a struct or an embed

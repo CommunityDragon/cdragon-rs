@@ -4,9 +4,9 @@ use cdragon_prop::{
     BinHashMappers,
     BinTraversal,
     BinVisitor,
-    BinHashSets,
     data::*,
 };
+use super::BinHashSets;
 
 
 #[derive(Default)]

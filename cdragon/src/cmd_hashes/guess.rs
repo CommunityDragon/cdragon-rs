@@ -5,7 +5,6 @@ use cdragon_prop::{
     BinEntry,
     BinHashKind,
     BinHashMappers,
-    BinHashSets,
     BinTraversal,
     BinVisitor,
     PropFile,
@@ -16,6 +15,7 @@ use cdragon_hashes::{
     bin::compute_binhash,
     HashOrStr,
 };
+use super::BinHashSets;
 use crate::utils::bin_files_from_dir;
 
 

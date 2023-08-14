@@ -4,17 +4,16 @@ use std::io::{BufRead, Write};
 use std::collections::HashSet;
 use std::path::{PathBuf, Path};
 use cdragon_hashes::{
-    bin::binhash_from_str,
+    bin::{BinHashKind, binhash_from_str},
     HashError,
 };
 use cdragon_prop::{
     BinHashMappers,
+    BinHashKindMapping,
     BinEntry,
     BinVisitor,
     PropFile,
     PropError,
-    BinHashSets,
-    data::*,
 };
 use cdragon_utils::GuardedFile;
 use crate::cli::*;
@@ -28,6 +27,8 @@ mod visitors;
 
 use guess::*;
 use visitors::*;
+
+type BinHashSets = BinHashKindMapping<HashSet<u32>, ()>;
 
 
 pub fn subcommand(name: &'static str) -> Subcommand {

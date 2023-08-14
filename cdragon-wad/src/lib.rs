@@ -11,13 +11,14 @@
 //! }
 //! ```
 //!
-//! [WadHashKind] can be used to use the appropriate hash file (assuming CDragon's files are used).
+//! [cdragon_hashes::HashKind] can be used to use the appropriate hash file (assuming CDragon's
+//! files are used).
 //! ```
-//! use cdragon_wad::WadHashKind;
-//! assert_eq!(WadHashKind::from_wad_path("Global.wad.client"), Some(WadHashKind::Game));
-//! assert_eq!(WadHashKind::from_wad_path("assets.wad"), Some(WadHashKind::Lcu));
-//! assert_eq!(WadHashKind::from_wad_path("unknown"), None);
-//! assert_eq!(WadHashKind::Lcu.mapper_path(), "hashes.lcu.txt");
+//! # use cdragon_hashes::HashKind;
+//! # use cdragon_wad::WadHashMapper;
+//! if let Some(kind) = HashKind::from_wad_path("Global.wad.client") {
+//!   let mapper = WadHashMapper::from_path(kind.mapping_path());
+//! }
 //! ```
 
 use std::fs::File;
@@ -33,14 +34,13 @@ use thiserror::Error;
 use cdragon_hashes::{
     define_hash_type,
     wad::compute_wad_hash,
-    HashError,
 };
 use cdragon_utils::{
     GuardedFile,
     parsing::{ParseError, ReadArray},
     parse_buf,
 };
-pub use cdragon_hashes::wad::{WadHashKind, WadHashMapper};
+pub use cdragon_hashes::wad::WadHashMapper;
 
 
 /// Result type for WAD errors

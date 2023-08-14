@@ -262,3 +262,66 @@ macro_rules! define_hash_type {
     }
 }
 
+
+/// Each kind of hash handled by CDragon
+///
+/// See also [bin::BinHashKind] for a kind limited to bin hashes.
+#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
+pub enum HashKind {
+    /// Hash for game WAD entries (`.wad.client`)
+    WadGame,
+    /// Hash for launcher WAD entries (`.wad`)
+    WadLcu,
+    /// Hash of an bin entry path
+    BinEntryPath,
+    /// Hash of a bin class name
+    BinClassName,
+    /// Hash of a bin field name
+    BinFieldName,
+    /// Hash of a bin hash value
+    BinHashValue,
+    /// Hash of RST files (translation files)
+    Rst,
+}
+
+impl HashKind {
+    /// Return filename used by CDragon to store the mapping this kind of hash
+    ///
+    /// ```
+    /// use cdragon_hashes::HashKind;
+    /// assert_eq!(HashKind::WadLcu.mapping_path(), "hashes.lcu.txt");
+    /// assert_eq!(HashKind::BinEntryPath.mapping_path(), "hashes.binentries.txt");
+    /// ```
+    pub fn mapping_path(&self) -> &'static str {
+        match self {
+            Self::WadGame => "hashes.game.txt",
+            Self::WadLcu => "hashes.lcu.txt",
+            Self::BinEntryPath => "hashes.binentries.txt",
+            Self::BinClassName => "hashes.bintypes.txt",
+            Self::BinFieldName => "hashes.binfields.txt",
+            Self::BinHashValue => "hashes.binhashes.txt",
+            Self::Rst => "hashes.rst.txt",
+        }
+    }
+
+    /// Return WAD hash kind from a WAD path
+    ///
+    /// The path is assumed to be a "regular" WAD path that follows Riot conventions.
+    /// ```
+    /// use cdragon_hashes::HashKind;
+    /// assert_eq!(HashKind::from_wad_path("Global.wad.client"), Some(HashKind::WadGame));
+    /// assert_eq!(HashKind::from_wad_path("assets.wad"), Some(HashKind::WadLcu));
+    /// assert_eq!(HashKind::from_wad_path("unknown"), None);
+    /// ```
+    pub fn from_wad_path<P: AsRef<Path>>(path: P) -> Option<Self> {
+        let path = path.as_ref().to_str()?;
+        if path.ends_with(".wad.client") {
+            Some(Self::WadGame)
+        } else if path.ends_with(".wad") {
+            Some(Self::WadLcu)
+        } else {
+            None
+        }
+    }
+}
+

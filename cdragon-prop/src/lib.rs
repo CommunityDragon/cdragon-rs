@@ -81,9 +81,8 @@ pub mod data;
 use std::io;
 use std::fs;
 use std::path::Path;
-use std::collections::HashSet;
 use thiserror::Error;
-use cdragon_hashes::{HashMapper, HashError, wad::WadHashKind};
+use cdragon_hashes::{HashKind, HashMapper, HashError};
 use cdragon_utils::parsing::ParseError;
 pub use cdragon_hashes::bin::{BinHashKind, BinHashMapper};
 
@@ -99,7 +98,7 @@ pub use visitor::{BinVisitor, BinTraversal};
 type Result<T, E = PropError> = std::result::Result<T, E>;
 
 
-/// Generic type to associate each `BinHashKind` to a value
+/// Generic type to associate each kind of hash from bin files to a value
 #[allow(missing_docs)]
 pub struct BinHashKindMapping<T, U> {
     pub entry_path: T,
@@ -162,28 +161,24 @@ impl BinHashMappers {
 
     /// Load all sub-mappers from a directory path
     pub fn load_dirpath(&mut self, path: &Path) -> Result<(), HashError> {
-        for &kind in &BinHashKind::VARIANTS {
-            self.get_mut(kind).load_path(path.join(kind.mapper_path()))?;
-        }
-        self.path_value.load_path(path.join(WadHashKind::Game.mapper_path()))?;
+        self.entry_path.load_path(path.join(HashKind::BinEntryPath.mapping_path()))?;
+        self.class_name.load_path(path.join(HashKind::BinClassName.mapping_path()))?;
+        self.field_name.load_path(path.join(HashKind::BinFieldName.mapping_path()))?;
+        self.hash_value.load_path(path.join(HashKind::BinHashValue.mapping_path()))?;
+        self.path_value.load_path(path.join(HashKind::WadGame.mapping_path()))?;
         Ok(())
     }
 
     /// Write all sub-mappers to a directory path
     pub fn write_dirpath(&self, path: &Path) -> Result<(), HashError> {
-        for &kind in &BinHashKind::VARIANTS {
-            self.get(kind).write_path(path.join(kind.mapper_path()))?;
-        }
-        self.path_value.write_path(path.join(WadHashKind::Game.mapper_path()))?;
+        self.entry_path.write_path(path.join(HashKind::BinEntryPath.mapping_path()))?;
+        self.class_name.write_path(path.join(HashKind::BinClassName.mapping_path()))?;
+        self.field_name.write_path(path.join(HashKind::BinFieldName.mapping_path()))?;
+        self.hash_value.write_path(path.join(HashKind::BinHashValue.mapping_path()))?;
+        self.path_value.write_path(path.join(HashKind::WadGame.mapping_path()))?;
         Ok(())
     }
 }
-
-/// Set for for all kinds of bin hashes
-///
-/// This type can be used to gather all known or unknown hash values.
-pub type BinHashSets = BinHashKindMapping<HashSet<u32>, HashSet<u64>>;
-
 
 /// PROP file, with entries
 ///

@@ -3,7 +3,7 @@
 //! Bin files use 32-bit FNV-1a hashes for several identifier names.
 //!
 //! This module provides methods to compute these hashes.
-use super::HashMapper;
+use super::{HashKind, HashMapper};
 
 /// Compute a bin hash from a string
 ///
@@ -72,14 +72,15 @@ impl BinHashKind {
         Self::FieldName,
         Self::HashValue,
     ];
+}
 
-    /// Return filename used by CDragon to store the mapping this kind of hash
-    pub fn mapper_path(&self) -> &'static str {
+impl Into<HashKind> for BinHashKind {
+    fn into(self) -> HashKind {
         match self {
-            Self::EntryPath => "hashes.binentries.txt",
-            Self::ClassName => "hashes.bintypes.txt",
-            Self::FieldName => "hashes.binfields.txt",
-            Self::HashValue => "hashes.binhashes.txt",
+            Self::EntryPath => HashKind::BinEntryPath,
+            Self::ClassName => HashKind::BinClassName,
+            Self::FieldName => HashKind::BinFieldName,
+            Self::HashValue => HashKind::BinHashValue,
         }
     }
 }

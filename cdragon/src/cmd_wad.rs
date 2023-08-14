@@ -1,5 +1,6 @@
 use std::path::{PathBuf, Path};
-use cdragon_wad::{WadEntry, WadFile, WadHashMapper, WadHashKind};
+use cdragon_hashes::HashKind;
+use cdragon_wad::{WadEntry, WadFile, WadHashMapper};
 use crate::cli::*;
 use crate::utils::{HashValuePattern, Result};
 
@@ -98,8 +99,8 @@ fn wad_and_hmapper_from_paths(wad_path: &Path, hashes_dir: Option<&PathBuf>) -> 
     let wad = WadFile::open(wad_path)?;
     let mut hmapper = WadHashMapper::new();
     if let Some(dir) = hashes_dir {
-        if let Some(kind) = WadHashKind::from_wad_path(wad_path) {
-            let path = Path::new(dir).join(kind.mapper_path());
+        if let Some(kind) = HashKind::from_wad_path(wad_path) {
+            let path = Path::new(dir).join(kind.mapping_path());
             hmapper.load_path(&path)?;
         }
     }
