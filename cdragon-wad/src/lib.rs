@@ -304,44 +304,6 @@ define_hash_type! {
     WadEntryHash(u64) => compute_wad_hash
 }
 
-/// Mapper for all types of WAD path hashes
-#[derive(Default)]
-pub struct WadHashMappers {
-    /// Hash mapper for launcher WAD files
-    pub lcu: WadHashMapper,
-    /// Hash mapper for game WAD files
-    pub game: WadHashMapper,
-}
-
-impl WadHashMappers {
-    /// Create mapper, load all sub-mappers from a directory path
-    pub fn from_dirpath(path: &Path) -> Result<Self, HashError> {
-        let mut this = Self::default();
-        this.load_dirpath(path)?;
-        Ok(this)
-    }
-
-    /// Load all sub-mappers from a directory path
-    pub fn load_dirpath(&mut self, path: &Path) -> Result<(), HashError> {
-        self.lcu.load_path(path.join(WadHashKind::Lcu.mapper_path()))?;
-        self.game.load_path(path.join(WadHashKind::Game.mapper_path()))?;
-        Ok(())
-    }
-
-    /// Get mapper from hash kind
-    pub fn mapper(&self, kind: WadHashKind) -> &WadHashMapper {
-        match kind {
-            WadHashKind::Lcu => &self.lcu,
-            WadHashKind::Game => &self.game,
-        }
-    }
-
-    /// Get mapper to use for given WAD path
-    pub fn mapper_from_wad_path<P: AsRef<Path>>(&self, path: P) -> Option<&WadHashMapper> {
-        WadHashKind::from_wad_path(path).map(|kind| self.mapper(kind))
-    }
-}
-
 
 #[allow(dead_code)]
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
