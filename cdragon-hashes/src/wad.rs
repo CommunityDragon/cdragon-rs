@@ -55,10 +55,3 @@ impl WadHashKind {
     }
 }
 
-/// Helper for const, inline computation of bin hashes, with implicit conversion
-#[macro_export]
-macro_rules! binh {
-    ($e:expr) => { $crate::bin::compute_binhash_const($e).into() };
-    ($t:ident, $e:literal) => { $t { hash: $crate::bin::compute_binhash_const($e) } };
-}
-
