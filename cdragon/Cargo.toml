@@ -15,6 +15,7 @@ cdragon-prop = { path = "../cdragon-prop" }
 cdragon-rman = { path = "../cdragon-rman" }
 cdragon-utils = { path = "../cdragon-utils", features = ["guarded_file"], optional = true }
 cdragon-wad = { path = "../cdragon-wad" }
+anyhow = "1"
 clap = "4"
 num-traits = "0.2"
 walkdir = "2"

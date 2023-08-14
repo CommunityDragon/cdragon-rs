@@ -1,8 +1,9 @@
 use std::path::{PathBuf, Path};
+use anyhow::{Context, Result};
 use cdragon_hashes::HashKind;
 use cdragon_wad::{WadEntry, WadFile, WadHashMapper};
 use crate::cli::*;
-use crate::utils::{HashValuePattern, Result};
+use crate::utils::HashValuePattern;
 
 pub fn subcommand(name: &'static str) -> Subcommand {
     let arg_wad = || Arg::new("wad")
@@ -96,12 +97,12 @@ fn handle(matches: &ArgMatches) -> CliResult {
 
 /// Read WAD from path parameter
 fn wad_and_hmapper_from_paths(wad_path: &Path, hashes_dir: Option<&PathBuf>) -> Result<(WadFile, WadHashMapper)> {
-    let wad = WadFile::open(wad_path)?;
+    let wad = WadFile::open(wad_path).with_context(|| format!("failed to open WAD file {}", wad_path.display()))?;
     let mut hmapper = WadHashMapper::new();
     if let Some(dir) = hashes_dir {
         if let Some(kind) = HashKind::from_wad_path(wad_path) {
             let path = Path::new(dir).join(kind.mapping_path());
-            hmapper.load_path(&path)?;
+            hmapper.load_path(&path).with_context(|| format!("failed to load hash mapping {}", path.display()))?;
         }
     }
     Ok((wad, hmapper))

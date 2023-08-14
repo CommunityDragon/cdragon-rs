@@ -14,8 +14,6 @@ use cdragon_prop::{
 };
 use cdragon_hashes::HashMapper;
 
-pub type Result<T, E = Box<dyn std::error::Error>> = std::result::Result<T, E>;
-
 
 /// Match strings against pattern with `*` wildcards
 pub struct PathPattern<'a> {
