@@ -10,8 +10,8 @@ description = "Work with WAD archive files used by Riot"
 keywords = ["cdragon", "wad"]
 
 [dependencies]
-cdragon-utils = { path = "../cdragon-utils", features = ["parsing", "guarded_file"] }
-cdragon-hashes = { path = "../cdragon-hashes", features = ["wad"] }
+cdragon-utils = { path = "../cdragon-utils", version = "0.1", features = ["parsing", "guarded_file"] }
+cdragon-hashes = { path = "../cdragon-hashes", version = "0.1", features = ["wad"] }
 nom = "7"
 serde_json = "1"
 thiserror = "1"

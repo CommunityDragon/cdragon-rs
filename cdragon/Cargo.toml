@@ -15,12 +15,12 @@ default = []
 hashes = ["dep:cdragon-utils"]
 
 [dependencies]
-cdragon-cdn = { path = "../cdragon-cdn" }
-cdragon-hashes = { path = "../cdragon-hashes", features = ["bin", "wad"] }
-cdragon-prop = { path = "../cdragon-prop" }
-cdragon-rman = { path = "../cdragon-rman" }
-cdragon-utils = { path = "../cdragon-utils", features = ["guarded_file"], optional = true }
-cdragon-wad = { path = "../cdragon-wad" }
+cdragon-cdn = { path = "../cdragon-cdn", version = "0.1" }
+cdragon-hashes = { path = "../cdragon-hashes", version = "0.1", features = ["bin", "wad"] }
+cdragon-prop = { path = "../cdragon-prop", version = "0.1" }
+cdragon-rman = { path = "../cdragon-rman", version = "0.1" }
+cdragon-utils = { path = "../cdragon-utils", version = "0.1", features = ["guarded_file"], optional = true }
+cdragon-wad = { path = "../cdragon-wad", version = "0.1" }
 anyhow = "1"
 clap = "4"
 num-traits = "0.2"

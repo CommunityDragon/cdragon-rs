@@ -14,8 +14,8 @@ default = []
 storage = ["dep:pathdiff", "dep:sha1_smol"]
 
 [dependencies]
-cdragon-utils = { path = "../cdragon-utils", features = ["guarded_file"] }
-cdragon-rman = { path = "../cdragon-rman" }
+cdragon-utils = { path = "../cdragon-utils", version = "0.1", features = ["guarded_file"] }
+cdragon-rman = { path = "../cdragon-rman", version = "0.1" }
 memmap = "0.7"
 reqwest = { version = "0.11", features = ["blocking"] }
 serde = "1"

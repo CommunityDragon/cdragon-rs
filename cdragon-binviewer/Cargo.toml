@@ -10,8 +10,8 @@ description = "Web-based viewer for BIN files from Riot"
 keywords = ["cdragon", "bin", "web"]
 
 [dependencies]
-cdragon-prop = { path = "../cdragon-prop" }
-cdragon-hashes = { path = "../cdragon-hashes", features = ["bin"] }
+cdragon-prop = { path = "../cdragon-prop", version = "0.1" }
+cdragon-hashes = { path = "../cdragon-hashes", version = "0.1", features = ["bin"] }
 futures = "0.3"
 gloo-console = "0.2"
 gloo-net = { version = "0.3", features = ["http"] }
