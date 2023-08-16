@@ -3,6 +3,11 @@ name = "cdragon-rman"
 version = "0.1.0"
 authors = ["Benoît Ryder <benoit@ryder.fr>"]
 edition = "2021"
+license = "MIT OR Apache-2.0"
+homepage = "https://www.communitydragon.org"
+repository = "https://github.com/CommunityDragon/cdragon-rs"
+description = "Work with RMAN manifest files used by Riot"
+keywords = ["cdragon", "rman", "manifest"]
 
 [dependencies]
 cdragon-utils = { path = "../cdragon-utils", features = ["parsing"] }

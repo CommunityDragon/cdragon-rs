@@ -3,6 +3,12 @@ name = "cdragon-binviewer-tools"
 version = "0.1.0"
 authors = ["Benoît Ryder <benoit@ryder.fr>"]
 edition = "2021"
+license = "MIT OR Apache-2.0"
+homepage = "https://www.communitydragon.org"
+repository = "https://github.com/CommunityDragon/cdragon-rs"
+description = "Tools for CDragon binviewer"
+keywords = ["cdragon"]
+categories = ["command-line-utilities"]
 
 [dependencies]
 cdragon-prop = { path = "../cdragon-prop" }

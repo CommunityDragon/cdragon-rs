@@ -3,7 +3,11 @@ name = "cdragon-binviewer"
 version = "0.1.0"
 authors = ["Benoît Ryder <benoit@ryder.fr>"]
 edition = "2021"
-workspace = ".."
+license = "MIT OR Apache-2.0"
+homepage = "https://www.communitydragon.org"
+repository = "https://github.com/CommunityDragon/cdragon-rs"
+description = "Web-based viewer for BIN files from Riot"
+keywords = ["cdragon", "bin", "web"]
 
 [dependencies]
 cdragon-prop = { path = "../cdragon-prop" }
