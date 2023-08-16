@@ -1,0 +1,12 @@
+[build]
+target = "index.html"
+release = true
+dist = "dist"
+# The public URL from which assets are to be served.
+public_url = "/"
+# Whether to include hash values in the output file names.
+filehash = false
+
+[serve]
+no_autoreload = false
+
