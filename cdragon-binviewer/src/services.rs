@@ -86,7 +86,6 @@ impl Services {
 
     /// Fetch an entry from given file, use cache if possible
     pub async fn fetch_entry(&self, file: &str, hpath: BinEntryPath) -> Result<BinEntry> {
-        gloo_console::console_dbg!(file, hpath);
         let data = self.binfile_cache.borrow_mut().get(file).cloned();
         let data = match data {
             Some(data) => data,
