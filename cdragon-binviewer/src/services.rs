@@ -5,6 +5,7 @@ use gloo_console::{debug, error};
 use gloo_net::http::Request;
 use thiserror::Error;
 use lru::LruCache;
+use cdragon_hashes::HashKind;
 use cdragon_prop::{
     PropFile,
     BinEntry,
@@ -16,6 +17,7 @@ use cdragon_prop::{
 };
 use crate::{
     entrydb::EntryDatabase,
+    settings,
     Result,
 };
 
@@ -127,7 +129,8 @@ async fn fetch_hash_mappers() -> Result<FetchedHashMappers> {
 }
 
 async fn fetch_one_hash_mapper(kind: BinHashKind) -> Result<BinHashMapper> {
-    let uri = static_uri!("hashes/{}", kind.mapper_path());
+    let kind: HashKind = kind.into();
+    let uri = settings::binviewer_static_url(&format!("hashes/{}", kind.mapping_path()));
     let data = Request::get(&uri)
         .send().await?
         .binary().await?;
@@ -137,7 +140,7 @@ async fn fetch_one_hash_mapper(kind: BinHashKind) -> Result<BinHashMapper> {
 
 /// Load the entry database, asynchronously
 async fn fetch_entrydb() -> Result<EntryDatabase> {
-    let uri = static_uri!("entries.db");
+    let uri = settings::binviewer_static_url("entries.db");
     let data = Request::get(&uri)
         .send().await?
         .binary().await?;
@@ -148,7 +151,7 @@ async fn fetch_entrydb() -> Result<EntryDatabase> {
 /// Fetch a bin file, asynchronously
 async fn fetch_binfile(file: &str) -> Result<Vec<u8>> {
     debug!("fetching bin file", file);
-    let uri = static_uri!("bins/{}", file);
+    let uri = settings::bin_file_url(file);
     let response = Request::get(&uri).send().await?;
     if response.ok() {
         let data = response.binary().await?;

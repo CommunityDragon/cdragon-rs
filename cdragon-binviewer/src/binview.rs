@@ -24,11 +24,16 @@ fn header_toggle_collapse(e: MouseEvent) {
 pub struct BinViewBuilder<'a> {
     hash_mappers: &'a BinHashMappers,
     on_link_click: Callback<BinEntryPath>,
+    assets_base_url: String,
 }
 
 impl<'a> BinViewBuilder<'a> {
     pub fn new(hmappers: &'a BinHashMappers, on_link_click: Callback<BinEntryPath>) -> Self {
-        Self { hash_mappers: hmappers, on_link_click }
+        Self {
+            hash_mappers: hmappers,
+            on_link_click,
+            assets_base_url: settings::assets_base_url(),
+        }
     }
 
     pub fn format_entry_path(&self, h: BinEntryPath) -> String {
@@ -186,11 +191,11 @@ impl_viewable!(BinColor, BinType::Color, this => {
         <span><span class="bin-color-value-preview" {style}></span>{ s }</span>
     }
 });
-impl_viewable!(BinString, BinType::String, this => {
+impl_viewable!(BinString, BinType::String, (this, b) => {
     let this = &this.0;
     if this.ends_with(".dds") || this.ends_with(".DDS") || this.ends_with(".tex") {
         let path = this[..this.len()-4].to_lowercase();
-        let url = format!("{}/{}.png", settings::ASSETS_BASE_URL, path);
+        let url = format!("{}/{}.png", b.assets_base_url, path);
         html! {
             <a href={url.clone()} class="tooltipped">{ this }<br/><img src={url} /></a>
         }

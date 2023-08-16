@@ -200,7 +200,7 @@ impl EntryDatabase {
     /// Parse a search criteria, using database information to resolve hashes
     fn parse_criteria<'a>(&'a self, word: &'a str) -> SearchCriteria<'a> {
         if let Some(hash) = word.strip_prefix('-') {
-            let htype = BinClassName::hashed(&hash);
+            let htype = BinClassName::hashed(hash);
             if self.types.contains(&htype) {
                 SearchCriteria::ExcludeEntryType(htype)
             } else {

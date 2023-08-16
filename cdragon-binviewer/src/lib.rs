@@ -1,5 +1,4 @@
 #![recursion_limit = "256"]
-#[macro_use]
 pub mod settings;
 mod entrydb;
 mod hooks;
@@ -63,7 +62,7 @@ impl AppState {
             Vec::new()
         } else {
             match services.entrydb.search_words(&words, &services.hmappers) {
-                Ok(it) => it.take(settings::MAX_SEARCH_RESULTS).collect(),
+                Ok(it) => it.take(settings::max_search_results()).collect(),
                 Err(e) => {
                     error!(format!("search failed: {}", e));
                     vec![]
@@ -207,8 +206,8 @@ fn html_result_count(state: &AppState) -> Html {
     let entry_count = state.services.entrydb.entry_count();
     let nresults = state.result_entries.len();
     let mut results_count = format!("{}", nresults);
-    // assume there was additional results if result count is exactly MAX_SEARCH_RESULTS
-    if nresults >= settings::MAX_SEARCH_RESULTS {
+    // assume there was additional results if result count is exactly max_search_results
+    if nresults >= settings::max_search_results() {
         results_count.push('+');
     };
     html! {
