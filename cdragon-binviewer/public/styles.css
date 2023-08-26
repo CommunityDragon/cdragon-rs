@@ -136,6 +136,14 @@ a:hover {
   display: inline-block;
 }
 
+.bin-entry-file-json {
+  font-family: sans-serif;
+  font-weight: normal;
+  font-size: 50%;
+  vertical-align: top;
+}
+.space-small { font-size: 30%; }
+
 .bin-field-type {
   margin-right: 0.6em;
 }

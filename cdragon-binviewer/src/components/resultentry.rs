@@ -11,6 +11,7 @@ use crate::{
     AppAction,
     binview::{BinViewBuilder, view_binfield},
     hooks::use_async,
+    settings,
     utils::*,
 };
 
@@ -104,11 +105,12 @@ pub fn result_entry(props: &Props) -> Html {
     };
 
     let file = services.entrydb.get_filename(ifile).unwrap();
-    let (file_href, on_file_click) = {
+    let (file_href, on_file_click, file_json_href) = {
         let file2 = file.clone();
         (
             build_app_url(file, None),
             handle_normal_click(props.dispatch.reform(move |_| AppAction::SearchEntries(file2.clone()))),
+            settings::bin_file_url(file) + ".json",
         )
     };
 
@@ -154,6 +156,10 @@ pub fn result_entry(props: &Props) -> Html {
                     {" "}
                     <a class="bin-entry-file" onclick={on_file_click} href={file_href}>
                         { file }
+                    </a>
+                    <span class="space-tiny">{""}</span>
+                    <a class="bin-entry-file-json" href={file_json_href}>
+                        {"json"}
                     </a>
                 </div>
                 {
