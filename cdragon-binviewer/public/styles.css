@@ -4,7 +4,7 @@ body {
 }
 
 a {
-  color: #0040d0;
+  color: var(--link-color);
   text-decoration: none;
 }
 a:hover {
@@ -22,14 +22,10 @@ a:hover {
   display: block;
   width: 100%;
   padding: 0.8ex 1.5ex;
-  border: 1px solid #c0c0c0;
+  border: 1px solid var(--search-border-color);
   border-radius: 0.5ex;
-  color: #303030;
-  background-color: white;
-}
-#search > input:focus {
-  border-color: #80bfff;
-  box-shadow: 0 0 0 .4ex #0080ff40;
+  color: var(--search-color);
+  background-color: var(--search-bg-color);
 }
 
 #search p {
@@ -65,8 +61,8 @@ a:hover {
 }
 
 .bin-entry {
-  background-color: white;
-  border-top: 1px solid #d0d0d0;
+  background-color: var(--bin-entry-bg-color);
+  border-top: 1px solid var(--bin-entry-border-color);
   padding: 0.1em 0;
   margin: 2px;
 }
@@ -78,7 +74,7 @@ a:hover {
   margin-right: 0.3em;
   font-size: 80%;
   display: inline-block;
-  color: #404040;
+  color: var(--bin-item-leaf-color);
 }
 .bin-item-leaf::before {
   opacity: 0;
@@ -93,18 +89,18 @@ a:hover {
 }
 
 
-.bin-entry-path { color: #000060; cursor: pointer; }
-.bin-entry-path:hover { background-color: #e0e0ff; }
-.bin-entry-type { color: #004000; cursor: pointer; }
-.bin-entry-type:hover { background-color: #e0ffe0; }
-.bin-entry-file { color: #b0b0b0; cursor: pointer; }
-.bin-entry-file:hover { background-color: #f0f0f0; }
-.bin-container-type { color: #003000; }
-.bin-struct-type { color: #006000; }
-.bin-field-name { color: #000080; }
-.bin-field-type { color: #006000; }
-.bin-link-value { color: #800000; cursor: pointer; }
-.bin-link-value:hover { background-color: #ffe0e0; }
+.bin-entry-path { color: var(--bin-path-color); cursor: pointer; }
+.bin-entry-path:hover { background-color: var(--bin-path-bg-color); }
+.bin-entry-type { color: var(--bin-entry-type-color); cursor: pointer; }
+.bin-entry-type:hover { background-color: var(--bin-entry-type-bg-color); }
+.bin-entry-file { color: var(--bin-entry-file-color); cursor: pointer; }
+.bin-entry-file:hover { background-color: var(--bin-entry-file-bg-color); }
+.bin-container-type { color: var(--bin-container-type-color); }
+.bin-struct-type { color: var(--bin-struct-type-color); }
+.bin-field-name { color: var(--bin-field-name-color); }
+.bin-field-type { color: var(--bin-field-type-color); }
+.bin-link-value { color: var(--bin-link-value-color); cursor: pointer; }
+.bin-link-value:hover { background-color: var(--bin-link-value-bg-color); }
 .bin-hash-value { }
 .bin-path-value { }
 .bin-color-value-preview {
@@ -113,7 +109,7 @@ a:hover {
   width: 1em;
   vertical-align: middle;
   display: inline-block;
-  border: 1px solid #444;
+  border: 1px solid var(--bin-color-value-preview-border-color);
 }
 
 .bin-entry-path,
@@ -149,7 +145,7 @@ a:hover {
 }
 
 .bin-entry:target > .bin-entry-header {
-  background-color: #fcffd0;
+  background-color: var(--bin-entry-target-bg-color);
 }
 
 a.tooltipped {
@@ -162,9 +158,76 @@ a.tooltipped > img {
   position: absolute;
   left: 0;
   display: none;
-  border: 1px solid black;
+  border: 1px solid var(--img-tooltip-border-color);
 }
 a.tooltipped:hover > img {
   display: block;
 }
 
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --link-color: #0040d0;
+    --search-color: #303030;
+    --search-bg-color: white;
+    --search-border-color: #c0c0c0;
+
+    --bin-entry-bg-color: white;
+    --bin-entry-border-color: #d0d0d0;
+    --bin-item-leaf-color: #404040;
+
+    --bin-path-color: #000060;
+    --bin-path-bg-color: #e0e0ff;
+    --bin-entry-type-color: #004000;
+    --bin-entry-type-bg-color: #e0ffe0;
+    --bin-entry-file-color: #b0b0b0;
+    --bin-entry-file-bg-color: #f0f0f0;
+
+    --bin-container-type-color: #003000;
+    --bin-struct-type-color: #006000;
+    --bin-field-name-color: #000080;
+    --bin-field-type-color: #006000;
+    --bin-link-value-color: #800000;
+    --bin-link-value-bg-color: #ffe0e0;
+
+    --bin-color-value-preview-border-color: #444;
+    --img-tooltip-border-color: black;
+    --bin-entry-target-bg-color: #fcffd0;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  html {
+    color: #f0f0f0;
+    background-color: var(--bin-entry-bg-color);
+  }
+
+  :root {
+    --link-color: #1060f0;
+    --search-color: #f0f0f0;
+    --search-bg-color: #1f1f1f;
+    --search-border-color: #808080;
+
+    --bin-entry-bg-color: #121212;
+    --bin-entry-border-color: #d0d0d0;
+    --bin-item-leaf-color: #404040;
+
+    --bin-path-color: #9090ff;
+    --bin-path-bg-color: #101080;
+    --bin-entry-type-color: #40c040;
+    --bin-entry-type-bg-color: #004000;
+    --bin-entry-file-color: #808080;
+    --bin-entry-file-bg-color: #303030;
+
+    --bin-container-type-color: #008000;
+    --bin-struct-type-color: #20c020;
+    --bin-field-name-color: #8080ff;
+    --bin-field-type-color: #20c020;
+    --bin-link-value-color: #ff8080;
+    --bin-link-value-bg-color: #600000;
+
+    --bin-color-value-preview-border-color: #444;
+    --img-tooltip-border-color: #b0b0b0;
+    --bin-entry-target-bg-color: #404040;
+  }
+}
