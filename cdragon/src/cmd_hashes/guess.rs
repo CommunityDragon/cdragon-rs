@@ -299,7 +299,6 @@ impl BinHashGuesser {
             .with_hook(EntryPathAttrHook!(ContextualActionData.mObjectPath))
             .with_hook(EntryPathAttrHook!(CustomShaderDef.objectPath))
             .with_hook(EntryPathAttrHook!(MapContainer.mapPath))
-            .with_hook(EntryPathAttrHook!(MapPlaceableContainer.path))
             .with_hook(EntryPathAttrHook!(RewardGroup.internalName))
             .with_hook(EntryPathAttrHook!(VfxSystemDefinitionData.particlePath))
             .with_hook(EntryPathPatternHook!(CharacterRecord.mCharacterName => "Characters/{}/CharacterRecords/Root"))
