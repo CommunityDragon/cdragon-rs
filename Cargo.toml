@@ -5,6 +5,7 @@ members = [
     "cdragon-cdn",
     "cdragon-prop",
     "cdragon-rman",
+    "cdragon-rst",
     "cdragon-utils",
     "cdragon-wad",
     "cdragon-binviewer",
@@ -16,6 +17,7 @@ default-members = [
     "cdragon-cdn",
     "cdragon-prop",
     "cdragon-rman",
+    "cdragon-rst",
     "cdragon-utils",
     "cdragon-wad",
 ]

@@ -5,6 +5,7 @@ mod cli;
 mod utils;
 mod cmd_bin;
 mod cmd_rman;
+mod cmd_rst;
 mod cmd_wad;
 #[cfg(feature = "hashes")]
 mod cmd_hashes;
@@ -57,6 +58,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Cli::new()
         .register("bin", cmd_bin::subcommand)
         .register("rman", cmd_rman::subcommand)
+        .register("rst", cmd_rst::subcommand)
         .register("wad", cmd_wad::subcommand)
         .register_hashes()
         .process()

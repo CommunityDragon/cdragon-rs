@@ -10,8 +10,9 @@ description = "Work with hashes used by Riot, and reversed by CDragon"
 keywords = ["cdragon", "hash"]
 
 [features]
-default = ["bin", "wad"]
+default = ["bin", "rst", "wad"]
 bin = []
+rst = ["dep:twox-hash"]
 wad = ["dep:twox-hash"]
 
 [dependencies]

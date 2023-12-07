@@ -1,0 +1,18 @@
+[package]
+name = "cdragon-rst"
+version = "0.1.0"
+authors = ["Benoît Ryder <benoit@ryder.fr>"]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+homepage = "https://www.communitydragon.org"
+repository = "https://github.com/CommunityDragon/cdragon-rs"
+description = "Work with Riot translation files"
+keywords = ["cdragon", "rst"]
+
+[dependencies]
+cdragon-utils = { path = "../cdragon-utils", version = "0.1", features = ["parsing", "guarded_file"] }
+cdragon-hashes = { path = "../cdragon-hashes", version = "0.1", features = ["wad"] }
+nom = "7"
+serde_json = "1"
+thiserror = "1"
+

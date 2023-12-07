@@ -18,6 +18,8 @@ use cdragon_utils::GuardedFile;
 
 #[cfg(feature = "bin")]
 pub mod bin;
+#[cfg(feature = "rst")]
+pub mod rst;
 #[cfg(feature = "wad")]
 pub mod wad;
 

@@ -8,6 +8,7 @@ The workspace provides the following crates:
 - `cdragon-hashes` – Work with hashes used by Riot, and reversed by CDragon
 - `cdragon-prop` – Work with BIN files used by Riot
 - `cdragon-rman` – Work with RMAN manifest files used by Riot
+- `cdragon-rst` – Work with RST translation files used by Riot
 - `cdragon-wad` – Work with WAD archive files used by Riot
 - `cdragon-cdn` – Download League of Legends files from Riot CDN
 - `cdragon-utils` – Utility crate used by other CDragon crates
