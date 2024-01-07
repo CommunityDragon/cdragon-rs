@@ -74,13 +74,13 @@ impl BinHashKind {
     ];
 }
 
-impl Into<HashKind> for BinHashKind {
-    fn into(self) -> HashKind {
-        match self {
-            Self::EntryPath => HashKind::BinEntryPath,
-            Self::ClassName => HashKind::BinClassName,
-            Self::FieldName => HashKind::BinFieldName,
-            Self::HashValue => HashKind::BinHashValue,
+impl From<BinHashKind> for HashKind {
+    fn from(val: BinHashKind) -> Self {
+        match val {
+            BinHashKind::EntryPath => HashKind::BinEntryPath,
+            BinHashKind::ClassName => HashKind::BinClassName,
+            BinHashKind::FieldName => HashKind::BinFieldName,
+            BinHashKind::HashValue => HashKind::BinHashValue,
         }
     }
 }

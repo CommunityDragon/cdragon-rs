@@ -496,7 +496,7 @@ impl<'a> FileEntry<'a> {
             .iter_chunks()
             .fold(0u32, |offset, chunk_id| {
                 let chunk = &bundle_chunks[&chunk_id];
-                let ranges = &mut bundle_ranges.entry(chunk.bundle_id).or_insert(Default::default());
+                let ranges = &mut bundle_ranges.entry(chunk.bundle_id).or_default();
                 ranges.push(FileChunkRange {
                     bundle: (chunk.bundle_offset, chunk.bundle_offset + chunk.bundle_size),
                     target: (offset, offset + chunk.target_size),
