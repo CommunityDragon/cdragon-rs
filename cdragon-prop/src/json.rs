@@ -36,6 +36,7 @@ macro_rules! write_sequence_after {
 
 
 /// Serialize bin values to JSON
+#[derive(Debug)]
 pub struct JsonSerializer<'a, W: Write> {
     writer: W,
     hmappers: &'a BinHashMappers,

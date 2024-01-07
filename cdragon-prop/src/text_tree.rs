@@ -39,6 +39,7 @@ macro_rules! serializeln {
 
 
 /// Serialize bin values to a human readable text tree
+#[derive(Debug)]
 pub struct TextTreeSerializer<'a, W: Write> {
     writer: W,
     hmappers: &'a BinHashMappers,

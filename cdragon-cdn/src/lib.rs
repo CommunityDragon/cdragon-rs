@@ -23,6 +23,7 @@ type Result<T, E = CdnError> = std::result::Result<T, E>;
 
 
 /// CDN from which game files can be downloaded
+#[derive(Debug)]
 pub struct CdnDownloader {
     client: Client,
     url: Url,

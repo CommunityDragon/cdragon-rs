@@ -70,7 +70,7 @@ pub struct Rman {
 pub type DirPaths = HashMap<u64, String>;
 
 /// Chunk, associated to a bundle
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct BundleChunk {
     /// Bundle ID of the chunk
     pub bundle_id: u64,
@@ -224,7 +224,7 @@ impl Rman {
 /// # Errors
 ///
 /// Parsing methods will panic on attempts to read outside the buffer.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct BodyCursor<'a> {
     body: &'a [u8],
     offset: i32,
@@ -397,6 +397,7 @@ impl<'a, I> Iterator for OffsetTableIter<'a, I> {
 /// File flag defined in RMAN
 ///
 /// Flags are locale codes (e.g. `en_US`) or platform (e.g. `macos`).
+#[derive(Debug)]
 pub struct FileFlagEntry<'a> {
     /// Flag ID
     pub id: u8,
@@ -406,6 +407,7 @@ pub struct FileFlagEntry<'a> {
 
 
 /// Bundle information from RMAN
+#[derive(Debug)]
 pub struct BundleEntry<'a> {
     /// Bundle ID
     pub id: u64,
@@ -430,6 +432,7 @@ impl<'a> BundleEntry<'a> {
 }
 
 /// Chunk information from RMAN
+#[derive(Debug)]
 pub struct ChunkEntry {
     /// Chunk ID
     pub id: u64,
@@ -442,6 +445,7 @@ pub struct ChunkEntry {
 }
 
 /// File information from RMAN
+#[derive(Debug)]
 pub struct FileEntry<'a> {
     /// File ID
     pub id: u64,
@@ -459,6 +463,7 @@ pub struct FileEntry<'a> {
 }
 
 /// Data byte range for an RMAN file
+#[derive(Debug)]
 pub struct FileChunkRange {
     /// Byte range of the chunk in its bundle
     pub bundle: (u32, u32),
@@ -545,6 +550,7 @@ impl<'a> Iterator for FileChunksIter<'a> {
 
 
 /// Set of RMAN file flags, as a bitmask
+#[derive(Debug)]
 pub struct FileFlagSet {
     mask: u64,
 }
@@ -565,6 +571,7 @@ impl FileFlagSet {
 
 
 /// Directory defined in RMAN
+#[derive(Debug)]
 pub struct DirectoryEntry<'a> {
     /// Directory ID
     pub id: u64,

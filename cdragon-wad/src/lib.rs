@@ -58,6 +58,15 @@ pub struct Wad {
     entry_data: Vec<u8>,
 }
 
+impl std::fmt::Debug for Wad {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Wad")
+            .field("version", &self.version)
+            .field("entry_count", &self.entry_count)
+            .finish()
+    }
+}
+
 impl Wad {
     const ENTRY_LEN: usize = 32;
 
@@ -147,6 +156,7 @@ impl Wad {
 /// Read WAD archive files and their entries
 ///
 /// This should be the prefered way to read a WAD file.
+#[derive(Debug)]
 pub struct WadReader<R: Read + Seek> {
     reader: R,
     wad: Wad,
@@ -259,6 +269,7 @@ impl WadFile {
 
 
 /// Subchunk TOC item data
+#[derive(Debug)]
 struct WadSubchunkTocEntry {
     /// Subchunk size, compressed
     size: u32,
@@ -272,6 +283,7 @@ struct WadSubchunkTocEntry {
 
 /// Information on a single file in a WAD
 #[allow(dead_code)]
+#[derive(Debug)]
 pub struct WadEntry {
     /// File path of the entry, hashed
     pub path: WadEntryHash,

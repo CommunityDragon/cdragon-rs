@@ -12,6 +12,7 @@ pub use cdragon_hashes::bin::BinHashMapper;
 
 
 /// Field value for an antry, a struct or an embed
+#[derive(Debug)]
 pub struct BinField {
     /// Field name (hashed)
     pub name: BinFieldName,

@@ -100,6 +100,7 @@ type Result<T, E = PropError> = std::result::Result<T, E>;
 
 /// Generic type to associate each kind of hash from bin files to a value
 #[allow(missing_docs)]
+#[derive(Debug)]
 pub struct BinHashKindMapping<T, U> {
     pub entry_path: T,
     pub class_name: T,
@@ -185,6 +186,7 @@ impl BinHashMappers {
 /// This structure contains all the data of a PROP file, completely parsed.
 /// It also provides methods to simply scan an file, without storing all the data, and possibly
 /// skipping unneeded data.
+#[derive(Debug)]
 pub struct PropFile {
     /// PROP version
     pub version: u32,
@@ -230,6 +232,7 @@ impl PropFile {
 pub type BinEntryHeader = (BinEntryPath, BinClassName);
 
 /// Entry in a PROP file
+#[derive(Debug)]
 pub struct BinEntry {
     /// Entry path (hashed)
     pub path: BinEntryPath,

@@ -160,6 +160,15 @@ impl<T, const N: usize> HashMapper<T, N> where T: Eq + Hash + Copy + fmt::LowerH
     }
 }
 
+impl<T, const N: usize> std::fmt::Debug for HashMapper<T, N> where T: Hash {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("HashMapper")
+            .field("BIT_SIZE", &N)
+            .field("len", &self.map.len())
+            .finish()
+    }
+}
+
 
 /// Trait for hash values types
 ///
@@ -188,6 +197,7 @@ pub trait HashDef: Sized {
 ///
 /// This enum is intended to be used along with a [HashMapper] for display.
 /// If string is unknown, the hash value is written as `{hex-value}`
+#[derive(Debug)]
 pub enum HashOrStr<H, S>
 where H: Copy, S: AsRef<str> {
     /// Hash value, string is unknown

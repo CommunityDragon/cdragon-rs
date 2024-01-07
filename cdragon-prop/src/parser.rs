@@ -113,6 +113,7 @@ impl BinParsable for PropFile {
 
 
 /// Scan entries from a bin file
+#[derive(Debug)]
 pub struct BinEntryScanner<R: Read> {
     reader: R,
     htypes_iter: std::vec::IntoIter<BinClassName>,
