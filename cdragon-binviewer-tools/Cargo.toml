@@ -1,6 +1,6 @@
 [package]
 name = "cdragon-binviewer-tools"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Benoît Ryder <benoit@ryder.fr>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -11,8 +11,8 @@ keywords = ["cdragon"]
 categories = ["command-line-utilities"]
 
 [dependencies]
-cdragon-prop = { path = "../cdragon-prop", version = "0.1" }
-cdragon-utils = { path = "../cdragon-utils", version = "0.1", features = ["guarded_file"] }
+cdragon-prop = { path = "../cdragon-prop", version = "0.2" }
+cdragon-utils = { path = "../cdragon-utils", version = "0.2", features = ["guarded_file"] }
 walkdir = "2"
 clap = "4"
 byteorder = "1"

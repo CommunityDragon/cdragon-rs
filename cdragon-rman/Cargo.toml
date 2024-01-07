@@ -1,6 +1,6 @@
 [package]
 name = "cdragon-rman"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Benoît Ryder <benoit@ryder.fr>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -10,7 +10,7 @@ description = "Work with RMAN manifest files used by Riot"
 keywords = ["cdragon", "rman", "manifest"]
 
 [dependencies]
-cdragon-utils = { path = "../cdragon-utils", version = "0.1", features = ["parsing"] }
+cdragon-utils = { path = "../cdragon-utils", version = "0.2", features = ["parsing"] }
 nom = "7"
 thiserror = "1"
 zstd = "0.12"

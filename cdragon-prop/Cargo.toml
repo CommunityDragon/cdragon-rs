@@ -1,6 +1,6 @@
 [package]
 name = "cdragon-prop"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Benoît Ryder <benoit@ryder.fr>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -10,8 +10,8 @@ description = "Work with BIN files used by Riot"
 keywords = ["cdragon", "bin", "prop"]
 
 [dependencies]
-cdragon-utils = { path = "../cdragon-utils", version = "0.1", features = ["parsing"] }
-cdragon-hashes = { path = "../cdragon-hashes", version = "0.1", features = ["bin", "wad"] }
+cdragon-utils = { path = "../cdragon-utils", version = "0.2", features = ["parsing"] }
+cdragon-hashes = { path = "../cdragon-hashes", version = "0.2", features = ["bin", "wad"] }
 num_enum = "0.6"
 nom = "7"
 thiserror = "1"

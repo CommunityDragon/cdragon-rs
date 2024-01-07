@@ -1,6 +1,6 @@
 [package]
 name = "cdragon"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Benoît Ryder <benoit@ryder.fr>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -15,13 +15,13 @@ default = []
 hashes = ["dep:cdragon-utils"]
 
 [dependencies]
-cdragon-cdn = { path = "../cdragon-cdn", version = "0.1" }
-cdragon-hashes = { path = "../cdragon-hashes", version = "0.1", features = ["bin", "wad"] }
-cdragon-prop = { path = "../cdragon-prop", version = "0.1" }
-cdragon-rman = { path = "../cdragon-rman", version = "0.1" }
-cdragon-rst = { path = "../cdragon-rst", version = "0.1" }
-cdragon-utils = { path = "../cdragon-utils", version = "0.1", features = ["guarded_file"], optional = true }
-cdragon-wad = { path = "../cdragon-wad", version = "0.1" }
+cdragon-cdn = { path = "../cdragon-cdn", version = "0.2" }
+cdragon-hashes = { path = "../cdragon-hashes", version = "0.2", features = ["bin", "wad"] }
+cdragon-prop = { path = "../cdragon-prop", version = "0.2" }
+cdragon-rman = { path = "../cdragon-rman", version = "0.2" }
+cdragon-rst = { path = "../cdragon-rst", version = "0.2" }
+cdragon-utils = { path = "../cdragon-utils", version = "0.2", features = ["guarded_file"], optional = true }
+cdragon-wad = { path = "../cdragon-wad", version = "0.2" }
 anyhow = "1"
 clap = { version = "4", features = ["env"] }
 num-traits = "0.2"
