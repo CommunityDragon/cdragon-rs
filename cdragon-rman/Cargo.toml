@@ -13,5 +13,5 @@ keywords = ["cdragon", "rman", "manifest"]
 cdragon-utils = { path = "../cdragon-utils", version = "0.2", features = ["parsing"] }
 nom = "7"
 thiserror = "1"
-zstd = "0.12"
+zstd = "0.13"
 

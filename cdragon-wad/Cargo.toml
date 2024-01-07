@@ -16,5 +16,5 @@ nom = "7"
 serde_json = "1"
 thiserror = "1"
 # Default features are not needed and break wasm build
-zstd = { version = "0.12", default-features = false }
+zstd = { version = "0.13", default-features = false }
 
