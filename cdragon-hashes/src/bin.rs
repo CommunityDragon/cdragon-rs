@@ -53,14 +53,13 @@ pub type BinHashMapper = HashMapper<u32, 32>;
 /// Enum with a variant for each kind of bin hash
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
 pub enum BinHashKind {
-    /// Hash of an entry path ([BinEntryPath])
+    /// Hash of an entry path (`BinEntryPath`)
     EntryPath,
-    /// Hash of an class name, used by [entries](BinEntry), [structs](BinStruct) and
-    /// [embeds](BinEmbed) ([BinClassName])
+    /// Hash of an class name, used by entries, structs and embeds (`BinClassName`)
     ClassName,
-    /// Hash of a field name ([BinFieldName])
+    /// Hash of a field name (`BinFieldName`)
     FieldName,
-    /// Hash of a has value ([BinHashValue])
+    /// Hash of a hash value (`BinHashValue`)
     HashValue,
 }
 
