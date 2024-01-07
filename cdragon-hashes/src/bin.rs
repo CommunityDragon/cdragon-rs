@@ -48,7 +48,7 @@ pub fn binhash_from_str(s: &str) -> u32 {
 
 
 /// Mapper for bin hashes
-pub type BinHashMapper = HashMapper<u32>;
+pub type BinHashMapper = HashMapper<u32, 32>;
 
 /// Enum with a variant for each kind of bin hash
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]

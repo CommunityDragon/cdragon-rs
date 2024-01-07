@@ -13,5 +13,5 @@ pub fn compute_wad_hash(s: &str) -> u64 {
 }
 
 /// Mapper for WAD hashes
-pub type WadHashMapper = HashMapper<u64>;
+pub type WadHashMapper = HashMapper<u64, 64>;
 

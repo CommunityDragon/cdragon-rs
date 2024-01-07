@@ -149,7 +149,7 @@ impl<T: Default, U: Default> Default for BinHashKindMapping<T, U> {
 ///
 /// Each individual mapper can be accessed either directly through its field, or from a
 /// `BinHashKind` value.
-pub type BinHashMappers = BinHashKindMapping<BinHashMapper, HashMapper<u64>>;
+pub type BinHashMappers = BinHashKindMapping<BinHashMapper, HashMapper<u64, 64>>;
 
 impl BinHashMappers {
     /// Create mapper, load all sub-mappers from a directory path

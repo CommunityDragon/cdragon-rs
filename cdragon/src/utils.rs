@@ -79,7 +79,7 @@ impl<'a, T: Num + Eq + Hash + Copy> HashValuePattern<'a, T> {
         Self::Path(PathPattern::new(pattern))
     }
 
-    pub fn is_match(&self, hash: T, mapper: &HashMapper<T>) -> bool {
+    pub fn is_match<const N: usize>(&self, hash: T, mapper: &HashMapper<T, N>) -> bool {
         match self {
             Self::Hash(h) => hash == *h,
             Self::Path(pattern) => {

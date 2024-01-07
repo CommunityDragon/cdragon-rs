@@ -44,16 +44,16 @@ pub enum HashError {
 /// A hash mapping can be loaded from and written to files.
 /// Such files store one line per hash, formatted as `<hex-value> <string>`.
 #[derive(Default)]
-pub struct HashMapper<T> where T: Hash {
+pub struct HashMapper<T, const NBITS: usize> where T: Hash {
     map: HashMap<T, String>,
 }
 
-impl<T> HashMapper<T> where T: Eq + Hash + Copy {
-    /// Length of the hexadecimal representation of the hash
-    ///
-    /// Always equal to two times the byte size of the hash value.
-    pub const HASH_HEX_LEN: usize = std::mem::size_of::<T>() * 2;
+impl<T, const NBITS: usize> HashMapper<T, NBITS> where T: Hash {
+    /// Number of characters used to format the hash
+    const NCHARS: usize = NBITS.div_ceil(4);
+}
 
+impl<T, const N: usize> HashMapper<T, N> where T: Eq + Hash + Copy {
     /// Create a new, empty mapping
     pub fn new() -> Self {
         Self { map: HashMap::<T, String>::new() }
@@ -99,7 +99,7 @@ impl<T> HashMapper<T> where T: Eq + Hash + Copy {
     }
 }
 
-impl<T> HashMapper<T> where T: Num + Eq + Hash + Copy {
+impl<T, const N: usize> HashMapper<T, N> where T: Num + Eq + Hash + Copy {
     /// Create a new mapping, loaded from a reader
     pub fn from_reader<R: BufRead>(reader: R) -> Result<Self> {
         let mut this = Self::new();
@@ -118,13 +118,13 @@ impl<T> HashMapper<T> where T: Num + Eq + Hash + Copy {
     pub fn load_reader<R: BufRead>(&mut self, reader: R) -> Result<(), HashError> {
         for line in reader.lines() {
             let l = line?;
-            if l.len() < Self::HASH_HEX_LEN + 2 {
+            if l.len() < Self::NCHARS + 2 {
                 return Err(HashError::InvalidHashLine(l));
             }
-            let hash = T::from_str_radix(&l[..Self::HASH_HEX_LEN], 16).map_err(|_e| {
-                HashError::InvalidHashValue(l[..Self::HASH_HEX_LEN].to_string())
+            let hash = T::from_str_radix(&l[..Self::NCHARS], 16).map_err(|_e| {
+                HashError::InvalidHashValue(l[..Self::NCHARS].to_string())
             })?;
-            self.map.insert(hash, l[Self::HASH_HEX_LEN+1..].to_string());
+            self.map.insert(hash, l[Self::NCHARS+1..].to_string());
         }
         Ok(())
     }
@@ -137,13 +137,13 @@ impl<T> HashMapper<T> where T: Num + Eq + Hash + Copy {
     }
 }
 
-impl<T> HashMapper<T> where T: Eq + Hash + Copy + fmt::LowerHex {
+impl<T, const N: usize> HashMapper<T, N> where T: Eq + Hash + Copy + fmt::LowerHex {
     /// Write hash mapping to a writer
     pub fn write<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
         let mut entries: Vec<_> = self.map.iter().collect();
         entries.sort_by_key(|kv| kv.1);
         for (h, s) in entries {
-            writeln!(writer, "{:0w$x} {}", h, s, w = Self::HASH_HEX_LEN)?;
+            writeln!(writer, "{:0w$x} {}", h, s, w = Self::NCHARS)?;
         }
         Ok(())
     }
