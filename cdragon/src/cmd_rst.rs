@@ -25,7 +25,7 @@ pub fn subcommand(name: &'static str) -> Subcommand {
 fn handle(matches: &ArgMatches) -> CliResult {
     match matches.subcommand() {
         Some(("list", matches)) => {
-            let (rst, hmapper) = rst_and_hmapper_from_paths(matches.get_one::<PathBuf>("rst").unwrap(), matches.get_one::<PathBuf>("hashes"))?;
+            let (rst, hmapper) = rst_and_hmapper_from_paths(matches.get_one::<PathBuf>("rst").unwrap(), get_hashes_dir(matches))?;
             for (hash, value) in rst.iter() {
                 println!("{} {}", hmapper.get(hash).unwrap_or("?"), value);
             }
@@ -36,11 +36,11 @@ fn handle(matches: &ArgMatches) -> CliResult {
 }
 
 /// Read RST from path parameter
-fn rst_and_hmapper_from_paths(rst_path: &Path, hashes_dir: Option<&PathBuf>) -> Result<(Rst, RstHashMapper)> {
+fn rst_and_hmapper_from_paths(rst_path: &Path, hashes_dir: Option<PathBuf>) -> Result<(Rst, RstHashMapper)> {
     let rst = Rst::open(rst_path).with_context(|| format!("failed to open RST file {}", rst_path.display()))?;
     let mut hmapper = RstHashMapper::new();
     if let Some(dir) = hashes_dir {
-        let path = Path::new(dir).join(HashKind::Rst.mapping_path());
+        let path = dir.join(HashKind::Rst.mapping_path());
         hmapper.load_path(&path).with_context(|| format!("failed to load hash mapping {}", path.display()))?;
     }
     Ok((rst, hmapper))

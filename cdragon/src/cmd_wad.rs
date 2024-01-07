@@ -46,7 +46,7 @@ pub fn subcommand(name: &'static str) -> Subcommand {
 fn handle(matches: &ArgMatches) -> CliResult {
     match matches.subcommand() {
         Some(("list", matches)) => {
-            let (wad, hmapper) = wad_and_hmapper_from_paths(matches.get_one::<PathBuf>("wad").unwrap(), matches.get_one::<PathBuf>("hashes"))?;
+            let (wad, hmapper) = wad_and_hmapper_from_paths(matches.get_one::<PathBuf>("wad").unwrap(), get_hashes_dir(matches))?;
             for entry in wad.iter_entries() {
                 let entry = entry?;
                 println!("{:x}  {}", entry.path, hmapper.get(entry.path.hash).unwrap_or("?"));
@@ -54,7 +54,7 @@ fn handle(matches: &ArgMatches) -> CliResult {
             Ok(())
         }
         Some(("extract", matches)) => {
-            let (mut wad, hmapper) = wad_and_hmapper_from_paths(matches.get_one::<PathBuf>("wad").unwrap(), matches.get_one::<PathBuf>("hashes"))?;
+            let (mut wad, hmapper) = wad_and_hmapper_from_paths(matches.get_one::<PathBuf>("wad").unwrap(), get_hashes_dir(matches))?;
             let patterns = matches.get_many::<String>("patterns");
             let hash_patterns: Option<Vec<HashValuePattern<u64>>> =
                 patterns.map(|p| p.map(|v| HashValuePattern::new(v)).collect());
@@ -96,12 +96,12 @@ fn handle(matches: &ArgMatches) -> CliResult {
 }
 
 /// Read WAD from path parameter
-fn wad_and_hmapper_from_paths(wad_path: &Path, hashes_dir: Option<&PathBuf>) -> Result<(WadFile, WadHashMapper)> {
+fn wad_and_hmapper_from_paths(wad_path: &Path, hashes_dir: Option<PathBuf>) -> Result<(WadFile, WadHashMapper)> {
     let wad = WadFile::open(wad_path).with_context(|| format!("failed to open WAD file {}", wad_path.display()))?;
     let mut hmapper = WadHashMapper::new();
     if let Some(dir) = hashes_dir {
         if let Some(kind) = HashKind::from_wad_path(wad_path) {
-            let path = Path::new(dir).join(kind.mapping_path());
+            let path = dir.join(kind.mapping_path());
             hmapper.load_path(&path).with_context(|| format!("failed to load hash mapping {}", path.display()))?;
         }
     }

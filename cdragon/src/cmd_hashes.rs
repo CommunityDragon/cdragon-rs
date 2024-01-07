@@ -102,8 +102,8 @@ fn handle(matches: &ArgMatches) -> CliResult {
         Some(("get-unknown", matches)) => {
             let path = matches.get_one::<PathBuf>("input").unwrap();
             let hmappers = {
-                let dir = matches.get_one::<PathBuf>("hashes").unwrap();
-                BinHashMappers::from_dirpath(Path::new(dir))?
+                let dir = get_hashes_dir(matches).unwrap();
+                BinHashMappers::from_dirpath(&dir)?
             };
 
             let mut hashes = CollectHashesVisitor::default()
@@ -118,8 +118,8 @@ fn handle(matches: &ArgMatches) -> CliResult {
         }
         Some(("guess", matches)) => {
             let path = matches.get_one::<PathBuf>("input").unwrap();
-            let hdir = Path::new(matches.get_one::<PathBuf>("hashes").unwrap());
-            let hmappers = BinHashMappers::from_dirpath(hdir)?;
+            let hdir = get_hashes_dir(matches).unwrap();
+            let hmappers = BinHashMappers::from_dirpath(&hdir)?;
             let udir = matches.get_one::<PathBuf>("unknown").map(Path::new);
             let mut hashes = if let Some(udir) = udir {
                 load_unknown(udir.into())?
@@ -142,7 +142,7 @@ fn handle(matches: &ArgMatches) -> CliResult {
             let finder = guesser.result();
 
             println!("Updating files...");
-            finder.hmappers.write_dirpath(hdir)?;
+            finder.hmappers.write_dirpath(&hdir)?;
 
             if let Some(udir) = udir {
                 write_unknown(udir.into(), &finder.hashes)?;
@@ -163,8 +163,8 @@ fn handle(matches: &ArgMatches) -> CliResult {
         Some(("search-entries", matches)) => {
             let path = matches.get_one::<PathBuf>("input").unwrap();
             let pattern = matches.get_one::<String>("pattern").unwrap();
-            let hdir = Path::new(matches.get_one::<PathBuf>("hashes").unwrap());
-            let hmappers = BinHashMappers::from_dirpath(hdir)?;
+            let hdir = get_hashes_dir(matches).unwrap();
+            let hmappers = BinHashMappers::from_dirpath(&hdir)?;
 
             let mut writer = io::BufWriter::new(io::stdout());
             let mut serializer = build_bin_entry_serializer(&mut writer, &hmappers, matches.get_flag("json"))?;
@@ -192,8 +192,8 @@ fn handle(matches: &ArgMatches) -> CliResult {
         Some(("hashes-matching-entries", matches)) => {
             let path = matches.get_one::<PathBuf>("input").unwrap();
             let hmappers = {
-                let dir = matches.get_one::<PathBuf>("hashes").unwrap();
-                BinHashMappers::from_dirpath(Path::new(dir))?
+                let dir = get_hashes_dir(matches).unwrap();
+                BinHashMappers::from_dirpath(&dir)?
             };
             HashesMatchingEntriesVisitor::new(&hmappers).traverse_dir(path)?;
             Ok(())

@@ -1,5 +1,5 @@
 use std::io;
-use std::path::{PathBuf, Path};
+use std::path::PathBuf;
 use anyhow::{Context, Result};
 use cdragon_hashes::bin::binhash_from_str;
 use cdragon_prop::{
@@ -44,8 +44,8 @@ pub fn subcommand(name: &'static str) -> Subcommand {
 fn handle(matches: &ArgMatches) -> CliResult {
     match matches.subcommand() {
         Some(("dump", matches)) => {
-            let hmappers = match matches.get_one::<PathBuf>("hashes") {
-                Some(dir) => BinHashMappers::from_dirpath(Path::new(dir))
+            let hmappers = match get_hashes_dir(matches) {
+                Some(dir) => BinHashMappers::from_dirpath(&dir)
                     .with_context(|| format!("failed to load hash mappers from {}", dir.display()))?,
                 _ => BinHashMappers::default(),
             };
