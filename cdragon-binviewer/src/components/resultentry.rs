@@ -121,20 +121,23 @@ pub fn result_entry(props: &Props) -> Html {
         let focus_after_render = {
             let state = state.clone();
             let toggle_entry = toggle_entry;
-            use_memo(move |focus| {
+            use_memo(props.focus, move |focus| {
                 if let (true, State::Empty | State::Closed(_)) = (focus, &*state) {
                     toggle_entry.emit(());
                 }
                 *focus
-            }, props.focus)
+            })
         };
 
-        use_effect_with_deps(move |(focus, opened)| {
-            if *focus && *opened {
-                // Assume the hash is correct
-                reset_location_hash().unwrap_throw();
+        use_effect_with(
+            (*focus_after_render, matches!(*state, State::Opened(_))),
+            move |(focus, opened)| {
+                if *focus && *opened {
+                    // Assume the hash is correct
+                    reset_location_hash().unwrap_throw();
+                }
             }
-        }, (*focus_after_render, matches!(*state, State::Opened(_))));
+        );
     }
 
     let mut b = BinViewBuilder::new(&services.hmappers, on_link_click);

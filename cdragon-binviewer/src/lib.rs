@@ -137,7 +137,7 @@ pub type AppContext = Rc<Services>;
 pub fn app() -> Html {
     // Note: URL is loaded after services are loaded
     let state = use_reducer(AppState::default);
-    use_memo({
+    use_memo((), {
         let state = state.clone();
         move |_| {
             yew::platform::spawn_local(async move {
@@ -145,7 +145,7 @@ pub fn app() -> Html {
                 state.dispatch(AppAction::ServicesLoaded(services));
             });
         }
-    }, ());
+    });
 
     let on_search = Callback::from({
         let state = state.clone();
@@ -161,7 +161,7 @@ pub fn app() -> Html {
     let focused_entry = state.focused_entry;
 
     // Setup listener for history change
-    use_effect_with_deps({
+    use_effect_with((), {
         let state = state.clone();
         move |_| {
             let window = web_sys::window().unwrap_throw();
@@ -170,7 +170,7 @@ pub fn app() -> Html {
 
             move || drop(listener)
         }
-    }, ());
+    });
 
     html! {
         <ContextProvider<AppContext> context={services.clone()}>
