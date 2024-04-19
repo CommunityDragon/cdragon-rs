@@ -303,7 +303,7 @@ impl BinHashGuesser {
             .with_hook(EntryPathAttrHook!(VfxSystemDefinitionData.particlePath))
             .with_hook(EntryPathPatternHook!(CharacterRecord.mCharacterName => "Characters/{}/CharacterRecords/Root"))
             .with_hook(EntryPathPatternHook!(GameFontDescription.name => "UX/Fonts/Descriptions/{}"))
-            .with_hook(EntryPathPatternHook!(ItemData.itemID(BinS32) => "Items/{}"))
+            .with_hook(EntryPathPatternHook!(ItemData.itemID(BinU32) => "Items/{}"))
             .with_hook(EntryPathPatternHook!(SpellObject.mScriptName => "Items/Spells/{}"))
             .with_hook(EntryPathPatternHook!(SummonerEmote.summonerEmoteId(BinU32) => "Loadouts/SummonerEmotes/{}"))
             .with_hook(EntryPathPatternHook!(TFTCharacterRecord.mCharacterName => "Characters/{}/CharacterRecords/Root"))
