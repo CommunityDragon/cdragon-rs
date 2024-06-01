@@ -120,7 +120,7 @@ impl<T, const N: usize> HashMapper<T, N> where T: Num + Eq + Hash + Copy {
     pub fn load_reader<R: BufRead>(&mut self, reader: R) -> Result<(), HashError> {
         for line in reader.lines() {
             let l = line?;
-            if l.len() < Self::NCHARS + 2 {
+            if l.len() < Self::NCHARS + 1 {
                 return Err(HashError::InvalidHashLine(l));
             }
             let hash = T::from_str_radix(&l[..Self::NCHARS], 16).map_err(|_e| {
@@ -336,4 +336,3 @@ impl HashKind {
         }
     }
 }
-
