@@ -304,7 +304,6 @@ impl BinHashGuesser {
             .with_hook(EntryPathPatternHook!(CharacterRecord.mCharacterName => "Characters/{}/CharacterRecords/Root"))
             .with_hook(EntryPathPatternHook!(GameFontDescription.name => "UX/Fonts/Descriptions/{}"))
             .with_hook(EntryPathPatternHook!(ItemData.itemID(BinU32) => "Items/{}"))
-            .with_hook(EntryPathPatternHook!(SpellObject.mScriptName => "Items/Spells/{}"))
             .with_hook(EntryPathPatternHook!(SummonerEmote.summonerEmoteId(BinU32) => "Loadouts/SummonerEmotes/{}"))
             .with_hook(EntryPathPatternHook!(TFTCharacterRecord.mCharacterName => "Characters/{}/CharacterRecords/Root"))
             .with_hook(EntryPathPatternHook!(TFTRoundData.mName => "Maps/Shipping/Map22/Rounds/{}"))
@@ -395,6 +394,21 @@ impl BinHashGuesser {
                     // Link to TftMapGroupData entry
                     finder.check_any(BinHashKind::EntryPath, s);
                 }
+            })
+
+            // Guess SpellObject path from mScriptName
+            // This does more than `EntryPathPatternHook!(SpellObject.mScriptName => "Items/Spells/{}"))`
+            .with_single_hook(binh!("SpellObject"), |entry, finder| {
+                if finder.is_unknown(BinHashKind::EntryPath, entry.path.hash) {
+                    let name = &binget!(entry => mScriptName(BinString)).unwrap().0;
+                    if finder.check_one(BinHashKind::EntryPath, entry.path.hash, format!("Items/Spells/{}", name)) {
+                        return;
+                    }
+                    if let Some((id, _)) = name.split_once(|c: char| !c.is_ascii_digit()) {
+                        finder.check_one(BinHashKind::EntryPath, entry.path.hash, format!("Items/{}/Spells/{}", id, name));
+                    }
+                }
+                //.with_hook(EntryPathPatternHook!(SpellObject.mScriptName => "Items/Spells/{}"))
             })
 
             // Guess ItemGroups path from ItemGroup.mItemGroupID (a hash)
