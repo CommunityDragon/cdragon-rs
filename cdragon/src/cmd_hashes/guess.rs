@@ -312,6 +312,7 @@ impl BinHashGuesser {
             .with_hook(EntryPathPatternHook!(TftSetData.name => "Maps/Shipping/Map22/Sets/{}"))
             .with_hook(EntryPathPatternHook!(TooltipFormat.mObjectName => "UX/Tooltips/{}"))
             .with_hook(EntryPathPatternHook!(X3DSharedConstantBufferDef.name => "Shaders/SharedData/{}"))
+            .with_hook(EntryPathPatternHook!(MapSkin.name => "Maps/Shipping/Map11/MapSkins/{}"))
     }
 
     /// Add relatively simple (but not trivial) hooks
