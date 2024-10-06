@@ -413,6 +413,18 @@ impl BinHashGuesser {
                 //.with_hook(EntryPathPatternHook!(SpellObject.mScriptName => "Items/Spells/{}"))
             })
 
+            // Guess Cheats path from ScriptCheat.mName
+            .with_single_hook(binh!("ScriptCheat"), |entry, finder| {
+                if finder.is_unknown(BinHashKind::EntryPath, entry.path.hash) {
+                    let name = &binget!(entry => mName(BinString)).unwrap().0;
+                    finder.check_one(BinHashKind::EntryPath, entry.path.hash, format!("Cheats/GameModes/TFT/{}", name));
+                    finder.check_one(BinHashKind::EntryPath, entry.path.hash, format!("Cheats/GameModes/Cherry/{}", name));
+                    finder.check_one(BinHashKind::EntryPath, entry.path.hash, format!("Cheats/GameModes/Slime/{}", name));
+                    finder.check_one(BinHashKind::EntryPath, entry.path.hash, format!("Cheats/GameModes/Strawberry/{}", name));
+                    finder.check_one(BinHashKind::EntryPath, entry.path.hash, format!("Cheats/GameModes/Ultbook/{}", name));
+                }
+            })
+
             // Guess ItemGroups path from ItemGroup.mItemGroupID (a hash)
             .with_single_hook(binh!("ItemGroup"), |entry, finder| {
                 if finder.is_unknown(BinHashKind::EntryPath, entry.path.hash) {
