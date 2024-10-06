@@ -402,7 +402,8 @@ impl BinHashGuesser {
             .with_single_hook(binh!("SpellObject"), |entry, finder| {
                 if finder.is_unknown(BinHashKind::EntryPath, entry.path.hash) {
                     let name = &binget!(entry => mScriptName(BinString)).unwrap().0;
-                    if finder.check_one(BinHashKind::EntryPath, entry.path.hash, format!("Items/Spells/{}", name)) {
+                    if finder.check_one(BinHashKind::EntryPath, entry.path.hash, format!("Items/Spells/{}", name))
+                    || finder.check_one(BinHashKind::EntryPath, entry.path.hash, format!("Shared/Spells/{}", name)) {
                         return;
                     }
                     if let Some((id, _)) = name.split_once(|c: char| !c.is_ascii_digit()) {
