@@ -332,7 +332,20 @@ impl BinHashGuesser {
                             if finder.check_one(BinHashKind::HashValue, k.0.hash, &target) {
                                 // found
                             } else if let Some((_, base)) = target.rsplit_once('/') {
-                                finder.check_one(BinHashKind::HashValue, k.0.hash, base);
+                                if !finder.check_one(BinHashKind::HashValue, k.0.hash, base)
+                                && !finder.check_one(BinHashKind::HashValue, k.0.hash, format!("{}_BV2", base)) {
+                                    if base.contains("Base_") {
+                                        finder.check_one(BinHashKind::HashValue, k.0.hash, base.replace("Base_", ""));
+                                        continue;
+                                    }
+                                    for i in 1..30 {
+                                        let skin_format = format!("Skin{:0>2}_", i);
+                                        if base.contains(&skin_format) {
+                                            finder.check_one(BinHashKind::HashValue, k.0.hash, base.replace(&skin_format, ""));
+                                            break;
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
