@@ -26,7 +26,7 @@ use std::collections::HashMap;
 use nom::{
     number::complete::{le_u8, le_u16, le_u32, le_u64},
     bytes::complete::tag,
-    sequence::tuple,
+    Parser,
 };
 use thiserror::Error;
 use cdragon_utils::{
@@ -120,7 +120,7 @@ impl Rman {
 
         let version = {
             let buf = reader.read_array::<MAGIC_VERSION_LEN>()?;
-            let (_, major, minor) = parse_buf!(buf, tuple((tag("RMAN"), le_u8, le_u8)));
+            let (_, major, minor) = parse_buf!(buf, (tag("RMAN"), le_u8, le_u8));
             if (major, minor) != (2, 0) {
                 return Err(RmanError::UnsupportedVersion(major, minor));
             }
@@ -130,7 +130,7 @@ impl Rman {
         let (flags, manifest_id, zstd_length) = {
             let buf = reader.read_array::<FIELDS_LEN>()?;
             let (flags, offset, zstd_length, manifest_id, _body_length) =
-                parse_buf!(buf, tuple((le_u16, le_u32, le_u32, le_u64, le_u32)));
+                parse_buf!(buf, (le_u16, le_u32, le_u32, le_u64, le_u32));
             if flags & (1 << 9) == 0 {
                 return Err(RmanError::UnsupportedFlags(flags));
             }
@@ -372,7 +372,7 @@ impl<'a, I> OffsetTableIter<'a, I> {
     }
 }
 
-impl<'a, I> Iterator for OffsetTableIter<'a, I> {
+impl<I> Iterator for OffsetTableIter<'_, I> {
     type Item = I;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -527,7 +527,7 @@ impl<'a> FileChunksIter<'a> {
     }
 }
 
-impl<'a> Iterator for FileChunksIter<'a> {
+impl Iterator for FileChunksIter<'_> {
     type Item = u64;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -581,7 +581,7 @@ pub struct DirectoryEntry<'a> {
     pub name: &'a str,
 }
 
-impl<'a> DirectoryEntry<'a> {
+impl DirectoryEntry<'_> {
     /// Build absolute path, using list of all directories
     pub fn path(&self, dirs: &[DirectoryEntry]) -> String {
         let mut path = self.name.to_owned();

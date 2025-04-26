@@ -12,7 +12,7 @@ keywords = ["cdragon", "rst"]
 [dependencies]
 cdragon-utils = { path = "../cdragon-utils", version = "0.2", features = ["parsing", "guarded_file"] }
 cdragon-hashes = { path = "../cdragon-hashes", version = "0.2", features = ["wad"] }
-nom = "7"
+nom = "8"
 serde_json = "1"
-thiserror = "1"
+thiserror = "2"
 

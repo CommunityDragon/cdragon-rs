@@ -8,7 +8,7 @@ pub type IResult<I, O> = nom::IResult<I, O, ()>;
 #[macro_export]
 macro_rules! parse_buf {
     ($buf:expr, $parser:expr) => {{
-        let result: nom::IResult<_, _, ()> = $parser(&$buf[..]);
+        let result: nom::IResult<_, _, ()> = $parser.parse(&$buf[..]);
         let (_, parsed) = result.map_err($crate::parsing::ParseError::from)?;
         parsed
     }}

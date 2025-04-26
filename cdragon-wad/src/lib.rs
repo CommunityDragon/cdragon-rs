@@ -28,7 +28,7 @@ use nom::{
     number::complete::{le_u8, le_u16, le_u32, le_u64},
     bytes::complete::tag,
     combinator::{map, map_res},
-    sequence::tuple,
+    Parser,
 };
 use thiserror::Error;
 use cdragon_hashes::{
@@ -90,7 +90,7 @@ impl Wad {
 
         let version = {
             let buf = reader.read_array::<MAGIC_VERSION_LEN>()?;
-            let (_, major, minor) = parse_buf!(buf, tuple((tag("RW"), le_u8, le_u8)));
+            let (_, major, minor) = parse_buf!(buf, (tag("RW"), le_u8, le_u8));
             (major, minor)
         };
 
@@ -99,7 +99,7 @@ impl Wad {
                 // Skip "useless" fields
                 reader.seek(SeekFrom::Current(84 + 8))?;
                 let buf = reader.read_array::<{2 + 2 + 4}>()?;
-                let (entry_offset, entry_size, entry_count) = parse_buf!(buf, tuple((le_u16, le_u16, le_u32)));
+                let (entry_offset, entry_size, entry_count) = parse_buf!(buf, (le_u16, le_u16, le_u32));
                 // Not supported because it's not needed, but could be
                 if entry_size != 32 {
                     return Err(WadError::UnsupportedV2EntrySize(entry_size));
@@ -132,11 +132,11 @@ impl Wad {
         let buf = &self.entry_data[offset .. offset + Self::ENTRY_LEN];
 
         let (path, offset, size, target_size, data_format, duplicate, first_subchunk_index, data_hash) =
-            parse_buf!(buf, tuple((
+            parse_buf!(buf, (
                         map(le_u64, WadEntryHash::from), le_u32, le_u32, le_u32,
                         map_res(le_u8, WadDataFormat::try_from),
                         map(le_u8, |v| v != 0), le_u16, le_u64,
-            )));
+            ));
         Ok(WadEntry { path, offset, size, target_size, data_format, duplicate, first_subchunk_index, data_hash })
     }
 
@@ -179,7 +179,7 @@ impl<R: Read + Seek> WadReader<R> {
                 let mut reader = self.read_entry(&entry)?;
                 for _ in 0..nitems {
                     let buf = reader.read_array::<TOC_ITEM_LEN>()?;
-                    let (size, target_size, data_hash) = parse_buf!(buf, tuple((le_u32, le_u32, le_u64)));
+                    let (size, target_size, data_hash) = parse_buf!(buf, (le_u32, le_u32, le_u64));
                     subchunk_toc.push(WadSubchunkTocEntry { size, target_size, data_hash });
                 }
             }

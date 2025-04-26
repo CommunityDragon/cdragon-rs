@@ -48,7 +48,7 @@ use std::path::Path;
 use nom::{
     number::complete::{le_u8, le_u32, le_u64},
     bytes::complete::tag,
-    sequence::tuple,
+    Parser,
 };
 use thiserror::Error;
 use cdragon_hashes::rst::compute_rst_hash_full;
@@ -108,7 +108,7 @@ impl Rst {
 
             let hash_mask = (1 << hash_bits) - 1;
             let mut it = nom::combinator::iterator(buf.as_slice(), le_u64);
-            entry_offsets.extend(it
+            entry_offsets.extend(it.by_ref()
                 .take(entry_count as usize)
                 .map(|v: u64| (v & hash_mask, (v >> hash_bits) as usize))
             );
@@ -136,7 +136,7 @@ impl Rst {
     fn parse_header<R: Read + Seek>(reader: &mut R) -> Result<(u8, u8, Option<String>, u32)> {
         let version = {
             let buf = reader.read_array::<{3 + 1}>()?;
-            let (_, version) = parse_buf!(buf, tuple((tag("RST"), le_u8)));
+            let (_, version) = parse_buf!(buf, (tag("RST"), le_u8));
             version
         };
 

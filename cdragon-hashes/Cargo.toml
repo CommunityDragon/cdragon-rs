@@ -18,5 +18,5 @@ wad = ["dep:twox-hash"]
 [dependencies]
 cdragon-utils = { path = "../cdragon-utils", version = "0.2", features = ["guarded_file"] }
 num-traits = "0.2"
-thiserror = "1"
-twox-hash = { version = "1.6", optional = true }
+thiserror = "2"
+twox-hash = { version = "2", optional = true }

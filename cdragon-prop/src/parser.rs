@@ -4,8 +4,9 @@ use nom::{
     number::complete::{le_u8, le_i8, le_u16, le_i16, le_u32, le_i32, le_u64, le_i64, le_f32},
     bytes::complete::{tag, take},
     combinator::{map, flat_map, opt},
-    sequence::{pair, tuple},
+    sequence::pair,
     multi::count,
+    Parser,
 };
 use super::{
     PropFile,
@@ -52,7 +53,7 @@ where
 {
     move |i: I| {
         let (i, n) = f(i)?;
-        let (i, v) = nom::multi::count(&g, n.to_usize())(i)?;
+        let (i, v) = nom::multi::count(&g, n.to_usize()).parse(i)?;
         Ok((i, v))
     }
 }
@@ -61,39 +62,39 @@ where
 macro_rules! impl_binparsable {
     ($type:ty, $expr:expr) => {
         impl BinParsable for $type {
-            fn binparse(i: &[u8]) -> IResult<&[u8], Self> { $expr(i) }
+            fn binparse(i: &[u8]) -> IResult<&[u8], Self> { $expr.parse(i) }
         }
     };
     ($type:ty, =$parser:expr) => {
         impl_binparsable!($type, map($parser, |v| Self(v)));
     };
     ($type:ty, =>($($parser:expr),* $(,)?)) => {
-        impl_binparsable!($type, map(tuple(($($parser,)*)), <$type>::from));
+        impl_binparsable!($type, map((($($parser,)*)), <$type>::from));
     };
 }
 
 impl BinParsable for PropFile {
     fn binparse(i: &[u8]) -> IResult<&[u8], Self> {
         // Parse header
-        let (i, opt_ptch) = opt(tag("PTCH"))(i)?;
+        let (i, opt_ptch) = opt(tag("PTCH")).parse(i)?;
         let (i, is_patch) = match opt_ptch {
             Some(_) => {
-                let (i, header) = tuple((le_u32, le_u32))(i)?;
+                let (i, header) = (le_u32, le_u32).parse(i)?;
                 assert_eq!(header, (1, 0));
                 (i, true)
             }
             None => (i, false)
         };
 
-        let (i, (_, version)) = tuple((tag("PROP"), le_u32))(i)?;
+        let (i, (_, version)) = (tag("PROP"), le_u32).parse(i)?;
         let (i, linked_files) =
             if version >= 2 {
-                length_count(le_u32, parse_binstring)(i)?
+                length_count(le_u32, parse_binstring).parse(i)?
             } else {
                 (i, vec![])
             };
 
-        let (i, entry_types) = length_count(le_u32, BinClassName::binparse)(i)?;
+        let (i, entry_types) = length_count(le_u32, BinClassName::binparse).parse(i)?;
         // Parse entries
         let (i, entries) = {
             let (mut i, mut entries) = (i, Vec::<BinEntry>::with_capacity(entry_types.len()));
@@ -133,7 +134,7 @@ impl<R: Read> BinEntryScanner<R> {
             let is_patch = match parse_buf!(buf[..4], opt(tag("PTCH"))) {
                 Some(_) => {
                     reader.read_exact(&mut buf[8..12])?;
-                    let header = parse_buf!(buf[4..12], tuple((le_u32, le_u32)));
+                    let header = parse_buf!(buf[4..12], (le_u32, le_u32));
                     assert_eq!(header, (1, 0));
                     reader.read_exact(&mut buf[..8])?;
                     true
@@ -141,7 +142,7 @@ impl<R: Read> BinEntryScanner<R> {
                 None => false
             };
 
-            let (_, version) = parse_buf!(buf[..8], tuple((tag("PROP"), le_u32)));
+            let (_, version) = parse_buf!(buf[..8], (tag("PROP"), le_u32));
             (is_patch, version)
         };
 
@@ -220,7 +221,7 @@ trait BinEntryScan {
     /// Read the next entry header, return the remaining length and the path
     fn next_scan(reader: &mut Self::Reader) -> Result<(u32, BinEntryPath)> {
         let buf = reader.read_array::<{4 + 4}>()?;
-        let (length, path) = parse_buf!(buf, tuple((le_u32, BinEntryPath::binparse)));
+        let (length, path) = parse_buf!(buf, (le_u32, BinEntryPath::binparse));
         Ok((length - 4, path))  // path has been read, deduct it from length
     }
 
@@ -356,7 +357,7 @@ where R: Read {
     pub ctype: BinClassName,
 }
 
-impl<'a, R> BinEntryScanItem<'a, R>
+impl<R> BinEntryScanItem<'_, R>
 where R: Read {
     pub fn read(self) -> Result<BinEntry> {
         self.owner.read_entry(self.path, self.ctype)
@@ -406,25 +407,25 @@ where R: Read {
 
 /// Parse a single BinEntry, starts at its header
 fn parse_entry_from_type(i: &[u8], ctype: BinClassName) -> IResult<&[u8], BinEntry> {
-    let (i, (_length, path)) = tuple((le_u32, BinEntryPath::binparse))(i)?;
+    let (i, (_length, path)) = (le_u32, BinEntryPath::binparse).parse(i)?;
     parse_entry_from_header(i, (path, ctype))
 }
 
 /// Parse a single BinEntry, starts before its field count
 fn parse_entry_from_header(i: &[u8], (path, ctype): BinEntryHeader) -> IResult<&[u8], BinEntry> {
     map(length_count(le_u16, BinField::binparse),
-        |fields| BinEntry { path, ctype, fields })(i)
+        |fields| BinEntry { path, ctype, fields }).parse(i)
 }
 
 fn parse_binstring(i: &[u8]) -> IResult<&[u8], String> {
-    map(flat_map(le_u16, take), |s| std::str::from_utf8(s).expect("invalid UTF-8 string in BIN").to_string())(i)
+    map(flat_map(le_u16, take), |s| std::str::from_utf8(s).expect("invalid UTF-8 string in BIN").to_string()).parse(i)
 }
 
 
 impl BinParsable for BinField {
     fn binparse(i: &[u8]) -> IResult<&[u8], Self> {
-        let (i, (name, vtype)) = tuple((BinFieldName::binparse, BinType::binparse))(i)?;
-        let (i, value) = binvalue_map_type!(vtype, T, map(T::binparse, |v| { Box::new(v) as Box<dyn Any> })(i)?);
+        let (i, (name, vtype)) = (BinFieldName::binparse, BinType::binparse).parse(i)?;
+        let (i, value) = binvalue_map_type!(vtype, T, map(T::binparse, |v| { Box::new(v) as Box<dyn Any> }).parse(i)?);
         Ok((i, Self { name, vtype, value }))
     }
 }
@@ -449,22 +450,22 @@ impl_binparsable!(BinFloat, =le_f32);
 impl_binparsable!(BinVec2, =>(le_f32, le_f32));
 impl_binparsable!(BinVec3, =>(le_f32, le_f32, le_f32));
 impl_binparsable!(BinVec4, =>(le_f32, le_f32, le_f32, le_f32));
-impl_binparsable!(BinColor, map(tuple((le_u8, le_u8, le_u8, le_u8)), |t| Self { r: t.0, g: t.1, b: t.2, a: t.3 }));
-impl_binparsable!(BinMatrix, map(tuple((le_f32, le_f32, le_f32, le_f32,
-                                           le_f32, le_f32, le_f32, le_f32,
-                                           le_f32, le_f32, le_f32, le_f32,
-                                           le_f32, le_f32, le_f32, le_f32)),
-                                           |t| Self([
-                                           [t.0, t.1, t.2, t.3],
-                                           [t.4, t.5, t.6, t.7],
-                                           [t.8, t.9, t.10, t.11],
-                                           [t.12, t.13, t.14, t.15]])
-                                           ));
+impl_binparsable!(BinColor, map((le_u8, le_u8, le_u8, le_u8), |t| Self { r: t.0, g: t.1, b: t.2, a: t.3 }));
+impl_binparsable!(BinMatrix, map((le_f32, le_f32, le_f32, le_f32,
+                                  le_f32, le_f32, le_f32, le_f32,
+                                  le_f32, le_f32, le_f32, le_f32,
+                                  le_f32, le_f32, le_f32, le_f32),
+                                  |t| Self([
+                                  [t.0, t.1, t.2, t.3],
+                                  [t.4, t.5, t.6, t.7],
+                                  [t.8, t.9, t.10, t.11],
+                                  [t.12, t.13, t.14, t.15]])
+                                  ));
 
 impl BinParsable for BinList {
     fn binparse(i: &[u8]) -> IResult<&[u8], Self> {
-        let (i, (vtype, _)) = tuple((BinType::binparse, le_u32))(i)?;
-        let (i, values) = binvalue_map_type!(vtype, T, map(length_count(le_u32, T::binparse), |v| { Box::new(v) as Box<dyn Any> })(i)?);
+        let (i, (vtype, _)) = (BinType::binparse, le_u32).parse(i)?;
+        let (i, values) = binvalue_map_type!(vtype, T, map(length_count(le_u32, T::binparse), |v| { Box::new(v) as Box<dyn Any> }).parse(i)?);
         Ok((i, Self { vtype, values }))
     }
 }
@@ -475,7 +476,7 @@ impl BinParsable for BinStruct {
         if ctype.is_null() {
             Ok((i, Self { ctype, fields: vec![] }))
         } else {
-            let (i, (_, fields)) = tuple((le_u32, length_count(le_u16, BinField::binparse)))(i)?;
+            let (i, (_, fields)) = (le_u32, length_count(le_u16, BinField::binparse)).parse(i)?;
             Ok((i, Self { ctype, fields }))
         }
     }
@@ -487,7 +488,7 @@ impl BinParsable for BinEmbed {
         if ctype.is_null() {
             Ok((i, Self { ctype, fields: vec![] }))
         } else {
-            let (i, (_, fields)) = tuple((le_u32, length_count(le_u16, BinField::binparse)))(i)?;
+            let (i, (_, fields)) = (le_u32, length_count(le_u16, BinField::binparse)).parse(i)?;
             Ok((i, Self { ctype, fields }))
         }
     }
@@ -500,7 +501,7 @@ impl BinParsable for BinOption {
         let (i, value) = match n {
             0 => (i, None),
             1 => {
-                let (i, v) = binvalue_map_type!(vtype, T, map(T::binparse, |v| Box::new(v) as Box<dyn Any>)(i)?);
+                let (i, v) = binvalue_map_type!(vtype, T, map(T::binparse, |v| Box::new(v) as Box<dyn Any>).parse(i)?);
                 (i, Some(v))
             }
             _ => panic!("unexpected option count: {}", n),
@@ -511,14 +512,14 @@ impl BinParsable for BinOption {
 
 impl BinParsable for BinMap {
     fn binparse(i: &[u8]) -> IResult<&[u8], Self> {
-        let (i, (ktype, vtype, _, n)) = tuple((BinType::binparse, BinType::binparse, le_u32, le_u32))(i)?;
+        let (i, (ktype, vtype, _, n)) = (BinType::binparse, BinType::binparse, le_u32, le_u32).parse(i)?;
         let (i, values) =
             binvalue_map_keytype!(
                 ktype, K, binvalue_map_type!(
                     vtype, V, map(count(pair(K::binparse, V::binparse), n as usize), |v| {
                         let v: Vec<(K, V)> = v.into_iter().collect();
                         Box::new(v) as Box<dyn Any>
-                    })(i)?));
+                    }).parse(i)?));
         Ok((i, Self { ktype, vtype, values }))
     }
 }

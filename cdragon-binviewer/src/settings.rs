@@ -9,6 +9,7 @@ extern "C" {
     /// - `binsBaseUrl`: base URL for bin files (default: `"game"`)
     /// - `assetsBaseUrl`: base URL for asset files (default: `"game"`)
     /// - `maxResults`: maximum search results (default: `1000`)
+    #[wasm_bindgen(thread_local_v2)]
     static BINVIEWER: JsValue;
 }
 
@@ -37,13 +38,13 @@ pub fn max_search_results() -> usize {
 
 /// Read a binviewer setting variable
 fn get_setting_str(name: &str) -> Option<String> {
-    let value = js_sys::Reflect::get(&BINVIEWER, &name.into()).ok()?;
+    let value = BINVIEWER.with(|v| js_sys::Reflect::get(v, &name.into()).ok())?;
     value.as_string()
 }
 
 /// Read a binviewer setting variable
 fn get_setting_f64(name: &str) -> Option<f64> {
-    let value = js_sys::Reflect::get(&BINVIEWER, &name.into()).ok()?;
+    let value = BINVIEWER.with(|v| js_sys::Reflect::get(v, &name.into()).ok())?;
     value.as_f64()
 }
 

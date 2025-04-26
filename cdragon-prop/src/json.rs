@@ -292,7 +292,7 @@ impl<'a, W: Write> JsonEntriesSerializer<'a, W> {
     }
 }
 
-impl<'a, W: Write> BinEntriesSerializer for JsonEntriesSerializer<'a, W> {
+impl<W: Write> BinEntriesSerializer for JsonEntriesSerializer<'_, W> {
     fn write_entry(&mut self, entry: &BinEntry) -> io::Result<()> {
         if self.first {
             self.first = false;

@@ -1,15 +1,12 @@
 //! Hashes used in RST files
 //!
 //! Keys are hashed using 64-bit xxHash, then truncated.
-use std::hash::Hasher;
 use twox_hash::XxHash64;
 use crate::HashMapper;
 
 /// Compute a hash for an RST file key, untruncated
 pub fn compute_rst_hash_full(s: &str) -> u64 {
-    let mut h = XxHash64::with_seed(0);
-    h.write(s.as_bytes());
-    h.finish()
+    XxHash64::oneshot(0, s.as_bytes())
 }
 
 /// Compute a hash for an RST file key, truncated to `n` bits

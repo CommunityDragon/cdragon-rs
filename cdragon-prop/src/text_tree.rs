@@ -301,7 +301,7 @@ pub struct TextTreeEntriesSerializer<'a, W: Write> {
     parent: TextTreeSerializer<'a, W>,
 }
 
-impl<'a, W: Write> BinEntriesSerializer for TextTreeEntriesSerializer<'a, W> {
+impl<W: Write> BinEntriesSerializer for TextTreeEntriesSerializer<'_, W> {
     fn write_entry(&mut self, entry: &BinEntry) -> io::Result<()> {
         self.parent.write_entry(entry)
     }
