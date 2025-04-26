@@ -112,7 +112,7 @@ impl BinHashFinder {
     }
 
     /// Check an iterable of strings to match a given hash
-    /// Return false if still unknown
+    /// Return None if still unknown
     pub fn check_one_from_iter<S: Into<String> + AsRef<str>>(&mut self, kind: BinHashKind, hash: u32, values: impl Iterator<Item=S>) -> bool {
         let hashes = self.hashes.get_mut(kind);
         if !hashes.contains(&hash) {
@@ -708,17 +708,28 @@ fn on_skin_character_data_entry(entry: &BinEntry, finder: &mut BinHashFinder) {
     let path = finder.get_str(BinHashKind::EntryPath, entry.path.hash)
         .map(|s| s.to_owned())
         .or_else(|| {
-            // Try to guess the skin path
-            // Assume `{character}Skin{N}` format, but it does not work for TFT and others
-            //XXX Previous guessing used the .bin path. Iterate on all numbers?
+            // 1. Assume `championSkinName` format `{character}Skin{N}` format (and strip leading `0`)
+            // 2. Get champion name from `iconSquare`, try incrementing skin numbers
+            // Note: the skin path could be easily guessed from file name, but we don't have it.
+            // Note: `championSkinName` is sometimes equal to the character name
             let s = &binget!(entry => championSkinName(BinString))?.0;
-            let (champ, skin) = s.rfind("Skin").map(|i| s.split_at(i))?;
-            let path = format!("Characters/{}/Skins/{}", champ, skin);
-            if finder.check_one(BinHashKind::EntryPath, entry.path.hash, &path) {
-                Some(path)
+            if let Some((champ, skin_number)) = s.split_once("Skin") {
+                let path = format!("Characters/{}/Skins/Skin{}", champ, skin_number.trim_start_matches('0'));
+                if finder.check_one(BinHashKind::EntryPath, entry.path.hash, &path) {
+                    return Some(path)
+                }
             } else {
-                None
+                let s = &binget!(entry => iconSquare(BinOption)(BinString))?.0;
+                let mut split = s.splitn(4, '/');
+                if let (Some("ASSETS"), Some("Characters"), Some(character)) = (split.next(), split.next(), split.next()) {
+                    let it = (0..200).map(|i| format!("Characters/{}/Skins/Skin{}", character, i));
+                    if finder.check_one_from_iter(BinHashKind::EntryPath, entry.path.hash, it) {
+                        // `check_one_from_iter()` does not return the found value, get it back
+                        return Some(finder.get_str(BinHashKind::EntryPath, entry.path.hash)?.to_owned());
+                    }
+                }
             }
+            None
         });
     let path = match path {
         Some(p) => p,
