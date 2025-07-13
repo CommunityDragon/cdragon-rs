@@ -740,10 +740,10 @@ fn on_skin_character_data_entry(entry: &BinEntry, finder: &mut BinHashFinder) {
         finder.check_one(BinHashKind::EntryPath, resolver.0.hash, format!("{}/Resources", path));
     }
 
-    if let Some(animation) = binget!(entry => skinAnimation(BinStruct).animationGraphData(BinLink)) {
-        let mut split = path.rsplitn(3, '/');
-        if let (Some(character), Some("Skins"), Some(skin)) = (split.next(), split.next(), split.next()) {
-            finder.check_one(BinHashKind::EntryPath, animation.0.hash, format!("{}/Animation/{}", character, skin));
+    if let Some(animation) = binget!(entry => skinAnimationProperties(BinEmbed).animationGraphData(BinLink)) {
+        let mut split = path.splitn(4, '/');
+        if let (Some("Characters"), Some(character), Some("Skins"), Some(skin)) = (split.next(), split.next(), split.next(), split.next()) {
+            finder.check_one(BinHashKind::EntryPath, animation.0.hash, format!("Characters/{}/Animations/{}", character, skin));
         }
     }
 }
@@ -823,4 +823,3 @@ impl GuessingHook for EntryTypesStatsHook {
         }
     }
 }
-
