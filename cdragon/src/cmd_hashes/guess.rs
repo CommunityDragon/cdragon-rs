@@ -261,7 +261,7 @@ impl BinHashGuesser {
 
         // Many types have their path in the `name` field
         // We could also check `name` in all cases but that would require to parse ALL entries.
-        const NAMED_TYPES: [BinClassName; 30] = [
+        const NAMED_TYPES: [BinClassName; 33] = [
             binh!(BinClassName, "StaticMaterialDef"),
             binh!(BinClassName, "UISceneData"),
             binh!(BinClassName, "UiElementEffectAmmoData"),
@@ -272,6 +272,8 @@ impl BinHashGuesser {
             binh!(BinClassName, "UiElementEffectCircleMaskDesaturateData"),
             binh!(BinClassName, "UiElementEffectCooldownData"),
             binh!(BinClassName, "UiElementEffectCooldownRadialData"),
+            binh!(BinClassName, "UiElementEffectCustomMaterialData"),
+            binh!(BinClassName, "UiElementEffectData"),
             binh!(BinClassName, "UiElementEffectDesaturateData"),
             binh!(BinClassName, "UiElementEffectFillPercentageData"),
             binh!(BinClassName, "UiElementEffectGlowConstantData"),
@@ -290,6 +292,7 @@ impl BinHashGuesser {
             binh!(BinClassName, "UiElementParticleSystemData"),
             binh!(BinClassName, "UiElementRegionData"),
             binh!(BinClassName, "UiElementScissorRegionData"),
+            binh!(BinClassName, "UiElementSpineAnimationData"),
             binh!(BinClassName, "UiElementTextData"),
             binh!(BinClassName, "UiSceneViewPaneData"),
         ];
