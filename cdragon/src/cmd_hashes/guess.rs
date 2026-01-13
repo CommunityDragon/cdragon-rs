@@ -304,6 +304,7 @@ impl BinHashGuesser {
             .with_hook(EntryPathAttrHook!(MapContainer.mapPath))
             .with_hook(EntryPathAttrHook!(RewardGroup.internalName))
             .with_hook(EntryPathAttrHook!(VfxSystemDefinitionData.particlePath))
+            .with_hook(EntryPathAttrHook!(Sequence.path))
             .with_hook(EntryPathPatternHook!(CharacterRecord.mCharacterName => "Characters/{}/CharacterRecords/Root"))
             .with_hook(EntryPathPatternHook!(GameFontDescription.name => "UX/Fonts/Descriptions/{}"))
             .with_hook(EntryPathPatternHook!(ItemData.itemID(BinU32) => "Items/{}"))
