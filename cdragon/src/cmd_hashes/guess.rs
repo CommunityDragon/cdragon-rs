@@ -423,6 +423,10 @@ impl BinHashGuesser {
                     || finder.check_one(BinHashKind::EntryPath, entry.path.hash, format!("Shared/Spells/{}", name)) {
                         return;
                     }
+                    let it = [11, 12, 21, 22, 30, 33, 35].iter().map(|i| format!("Maps/Shipping/Map{}/Spells/{}", i, name));
+                    if finder.check_one_from_iter(BinHashKind::EntryPath, entry.path.hash, it) {
+                        return;
+                    }
                     if let Some((id, _)) = name.split_once(|c: char| !c.is_ascii_digit()) {
                         finder.check_one(BinHashKind::EntryPath, entry.path.hash, format!("Items/{}/Spells/{}", id, name));
                     }
@@ -439,6 +443,15 @@ impl BinHashGuesser {
                     finder.check_one(BinHashKind::EntryPath, entry.path.hash, format!("Cheats/GameModes/Slime/{}", name));
                     finder.check_one(BinHashKind::EntryPath, entry.path.hash, format!("Cheats/GameModes/Strawberry/{}", name));
                     finder.check_one(BinHashKind::EntryPath, entry.path.hash, format!("Cheats/GameModes/Ultbook/{}", name));
+                }
+            })
+
+            // Guess TftTraitData path from TftTraitData.mName
+            .with_single_hook(binh!("TftTraitData"), |entry, finder| {
+                if finder.is_unknown(BinHashKind::EntryPath, entry.path.hash) {
+                    let name = &binget!(entry => mName(BinString)).unwrap().0;
+                    let it = (1..30).map(|i| format!("Maps/Shipping/Map22/Sets/TFTSet{}/Traits/{}", i, name));
+                    finder.check_one_from_iter(BinHashKind::EntryPath, entry.path.hash, it);
                 }
             })
 
