@@ -21,8 +21,6 @@
 //! }
 //! ```
 
-#![feature(read_array)]
-
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom, BufReader};
 use std::path::Path;
@@ -39,7 +37,7 @@ use cdragon_hashes::{
 };
 use cdragon_utils::{
     GuardedFile,
-    parsing::{ParseError},
+    parsing::{ParseError, ReadArray},
     parse_buf,
 };
 pub use cdragon_hashes::wad::WadHashMapper;
@@ -427,3 +425,4 @@ pub enum WadError {
     #[error("missing subchunk TOC to read chunked entry")]
     MissingSubchunkToc,
 }
+

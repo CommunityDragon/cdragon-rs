@@ -41,8 +41,6 @@
 //! Older RST versions could have encrypted entries whose data is not valid UTF-8.
 //! Use [Rst::get_raw()] to access both encrypted and non-encrypted entries.
 
-#![feature(read_array)]
-
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::io::{Read, Seek, BufReader};
@@ -55,7 +53,7 @@ use nom::{
 use thiserror::Error;
 use cdragon_hashes::rst::compute_rst_hash_full;
 use cdragon_utils::{
-    parsing::{ParseError},
+    parsing::{ParseError, ReadArray},
     parse_buf,
 };
 pub use cdragon_hashes::rst::RstHashMapper;
@@ -266,3 +264,4 @@ pub enum RstError {
     #[error("version not supported: {0}")]
     UnsupportedVersion(u8),
 }
+

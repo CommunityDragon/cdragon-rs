@@ -19,8 +19,6 @@
 //! }
 //! ```
 
-#![feature(read_array)]
-
 use std::io::{Read, BufReader};
 use std::path::Path;
 use std::convert::TryInto;
@@ -32,7 +30,7 @@ use nom::{
 };
 use thiserror::Error;
 use cdragon_utils::{
-    parsing::{ParseError},
+    parsing::{ParseError, ReadArray},
     parse_buf,
 };
 
@@ -702,3 +700,4 @@ pub enum RmanError {
     #[error("flags not supported: {0:b}")]
     UnsupportedFlags(u16),
 }
+

@@ -70,8 +70,6 @@
 //!
 //! A [`BinHashMappers`] gather all hash-to-string conversion needed by bin data.
 
-#![feature(read_array)]
-
 mod macros;
 mod parser;
 mod serializer;
@@ -297,3 +295,4 @@ pub enum PropError {
     #[error("parsing error")]
     Parsing(#[from] ParseError),
 }
+
