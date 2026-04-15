@@ -316,7 +316,6 @@ impl BinHashGuesser {
             .with_hook(EntryPathPatternHook!(TftSetData.name => "Maps/Shipping/Map22/Sets/{}"))
             .with_hook(EntryPathPatternHook!(TooltipFormat.mObjectName => "UX/Tooltips/{}"))
             .with_hook(EntryPathPatternHook!(X3DSharedConstantBufferDef.name => "Shaders/SharedData/{}"))
-            .with_hook(EntryPathPatternHook!(MapSkin.name => "Maps/Shipping/Map11/MapSkins/{}"))
     }
 
     /// Add relatively simple (but not trivial) hooks
@@ -463,6 +462,15 @@ impl BinHashGuesser {
                             finder.check_one(BinHashKind::EntryPath, entry.path.hash, format!("Items/ItemGroup/{}", id));
                         }
                     }
+                }
+            })
+
+            // Guess MapSkin path from MapSkin.name for each known map id
+            .with_single_hook(binh!("MapSkin"), |entry, finder| {
+                if finder.is_unknown(BinHashKind::EntryPath, entry.path.hash) {
+                    let name = &binget!(entry => name(BinString)).unwrap().0;
+                    let it = [11, 12, 21, 22, 30, 33, 35].iter().map(|i| format!("Maps/Shipping/Map{}/MapSkins/{}", i, name));
+                    finder.check_one_from_iter(BinHashKind::EntryPath, entry.path.hash, it);
                 }
             })
 
