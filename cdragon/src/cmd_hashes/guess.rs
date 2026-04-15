@@ -430,6 +430,15 @@ impl BinHashGuesser {
                         finder.check_one(BinHashKind::EntryPath, entry.path.hash, format!("Items/{}/Spells/{}", id, name));
                     }
                 }
+
+                // guess mSpellCalculations mDataValue hashes from SpellDataValue.name in mSpell.DataValues
+                if let Some(spell) = binget!(entry => mSpell(BinStruct)) {
+                    if let Some(data_values) = binget!(spell => DataValues(BinList)) {
+                        for data_value in data_values.downcast::<BinEmbed>().unwrap() {
+                            finder.check_any(BinHashKind::HashValue, &binget!(data_value => name(BinString)).unwrap().0);
+                        }
+                    }
+                }
                 //.with_hook(EntryPathPatternHook!(SpellObject.mScriptName => "Items/Spells/{}"))
             })
 
