@@ -18,7 +18,7 @@ use super::{
 };
 use cdragon_hashes::HashDef;
 use cdragon_utils::{
-    parsing::{ParseError, IResult, ReadArray},
+    parsing::{ParseError, IResult},
     parse_buf,
 };
 
@@ -535,4 +535,3 @@ impl_binparsable!(BinType, map(le_u8, |mut v| {
     }
     Self::try_from(v).expect("invalid BIN type")
 }));
-

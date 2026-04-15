@@ -14,20 +14,6 @@ macro_rules! parse_buf {
     }}
 }
 
-/// Helper trait to read a known fix length as an array
-pub trait ReadArray {
-    /// Read into a fixed-size array
-    fn read_array<const N: usize>(&mut self) -> std::io::Result<[u8; N]>;
-}
-
-impl<R: std::io::Read> ReadArray for R {
-    fn read_array<const N: usize>(&mut self) -> std::io::Result<[u8; N]> {
-        let mut buf = [0u8; N];
-        self.read_exact(&mut buf)?;
-        Ok(buf)
-    }
-}
-
 
 /// Parsing error
 #[allow(missing_docs)]
@@ -51,4 +37,3 @@ impl<T> From<nom::Err<T>> for ParseError {
         }
     }
 }
-
