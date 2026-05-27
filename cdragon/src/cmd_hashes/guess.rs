@@ -483,6 +483,15 @@ impl BinHashGuesser {
                 }
             })
 
+            // Guess AugmentData path from AugmentData.AugmentNameId
+            .with_single_hook(binh!("AugmentData"), |entry, finder| {
+                if finder.is_unknown(BinHashKind::EntryPath, entry.path.hash) {
+                    if let Some(s) = binget!(entry => AugmentNameId(BinString)) {
+                        finder.check_one(BinHashKind::EntryPath, entry.path.hash, format!("Maps/ModeSpecificData/Augments/{}", &s.0));
+                    }
+                }
+            })
+
             // Guess CompanionSpeciesData path from CompanionData.speciesLink
             .with_single_hook(binh!("CompanionData"), |entry, finder| {
                 if finder.is_unknown(BinHashKind::EntryPath, entry.path.hash) {
