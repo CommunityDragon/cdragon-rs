@@ -523,6 +523,16 @@ impl BinHashGuesser {
                 }
             })
 
+            // Guess VfxSystemDefinitionData.objectPath from its particlePath
+            .with_single_hook(binh!("VfxSystemDefinitionData"), |entry, finder| {
+                if let Some(object_path) = binget!(entry => objectPath(BinHash)) {
+                    if finder.is_unknown(BinHashKind::HashValue, object_path.0.hash) {
+                        if let Some(particle_path) = binget!(entry => particlePath(BinString)) {
+                            finder.check_one(BinHashKind::HashValue, object_path.0.hash, &particle_path.0);
+                        }
+                    }
+                }
+            })
     }
 
     /// Add guessing from character data
