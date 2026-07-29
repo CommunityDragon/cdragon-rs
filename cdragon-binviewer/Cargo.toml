@@ -13,9 +13,10 @@ keywords = ["cdragon", "bin", "web"]
 cdragon-prop = { path = "../cdragon-prop", version = "0.2" }
 cdragon-hashes = { path = "../cdragon-hashes", version = "0.2", features = ["bin"] }
 futures = "0.3"
+getrandom = { version = "0.4", features = ["wasm_js"] }
 gloo-console = "0.3"
 gloo-net = { version = "0.6", features = ["http"] }
-lru = "0.14"
+lru = "0.18"
 yew = { version = "0.21", features = ["csr"] }
 js-sys = "0.3"
 wasm-bindgen = "0.2"
