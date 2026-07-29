@@ -1,6 +1,6 @@
 //! Helpers for building clap commands
 use std::path::PathBuf;
-pub use clap::{Arg, ArgAction, ArgGroup, ArgMatches, Command, value_parser};
+pub use clap::{Arg, ArgAction, ArgMatches, Command, value_parser};
 
 pub type CliResult = Result<(), Box<dyn std::error::Error>>;
 pub type Subcommand = (Command, fn(&ArgMatches) -> CliResult);

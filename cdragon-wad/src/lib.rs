@@ -89,7 +89,7 @@ impl Wad {
         const MAGIC_VERSION_LEN: usize = 2 + 2;
 
         let version = {
-            let buf = reader.read_array::<MAGIC_VERSION_LEN>()?;
+            let buf = reader.read_array_n::<MAGIC_VERSION_LEN>()?;
             let (_, major, minor) = parse_buf!(buf, (tag("RW"), le_u8, le_u8));
             (major, minor)
         };
@@ -98,7 +98,7 @@ impl Wad {
             2 => {
                 // Skip "useless" fields
                 reader.seek(SeekFrom::Current(84 + 8))?;
-                let buf = reader.read_array::<{2 + 2 + 4}>()?;
+                let buf = reader.read_array_n::<{2 + 2 + 4}>()?;
                 let (entry_offset, entry_size, entry_count) = parse_buf!(buf, (le_u16, le_u16, le_u32));
                 // Not supported because it's not needed, but could be
                 if entry_size != 32 {
@@ -109,7 +109,7 @@ impl Wad {
             3 => {
                 // Skip "useless" fields
                 reader.seek(SeekFrom::Current(264))?;
-                let buf = reader.read_array::<4>()?;
+                let buf = reader.read_array_n::<4>()?;
                 let entry_count = parse_buf!(buf, le_u32);
                 let entry_offset = reader.stream_position()?;
                 (entry_count, entry_offset)
@@ -178,7 +178,7 @@ impl<R: Read + Seek> WadReader<R> {
             {
                 let mut reader = self.read_entry(&entry)?;
                 for _ in 0..nitems {
-                    let buf = reader.read_array::<TOC_ITEM_LEN>()?;
+                    let buf = reader.read_array_n::<TOC_ITEM_LEN>()?;
                     let (size, target_size, data_hash) = parse_buf!(buf, (le_u32, le_u32, le_u64));
                     subchunk_toc.push(WadSubchunkTocEntry { size, target_size, data_hash });
                 }

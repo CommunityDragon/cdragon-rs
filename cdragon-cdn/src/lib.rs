@@ -132,7 +132,7 @@ impl CdnDownloader {
         let is_multipart = response.headers()
             .get(reqwest::header::CONTENT_TYPE)
             .and_then(|v| v.to_str().ok())
-            .map_or(false, |v| v.starts_with("multipart/byteranges; boundary="));
+            .is_some_and(|v| v.starts_with("multipart/byteranges; boundary="));
         let mut reader = BufReader::new(response);
 
         // Download individual chunks

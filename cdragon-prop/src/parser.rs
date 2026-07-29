@@ -148,10 +148,10 @@ impl<R: Read> BinEntryScanner<R> {
 
         if version >= 2 {
             // Skip linked files
-            let buf = reader.read_array::<4>()?;
+            let buf = reader.read_array_n::<4>()?;
             let n = parse_buf!(buf, le_u32);
             for _ in 0..n {
-                let buf = reader.read_array::<2>()?;
+                let buf = reader.read_array_n::<2>()?;
                 let n = parse_buf!(buf, le_u16);
                 std::io::copy(&mut reader.by_ref().take(n as u64), &mut std::io::sink())?;
             }
@@ -159,7 +159,7 @@ impl<R: Read> BinEntryScanner<R> {
 
         // Parse entry types
         let entry_types: Vec<BinClassName> = {
-            let buf = reader.read_array::<4>()?;
+            let buf = reader.read_array_n::<4>()?;
             let n = parse_buf!(buf, le_u32);
             let mut buf = Vec::<u8>::new();
             reader.by_ref().take(4 * n as u64).read_to_end(&mut buf)?;
@@ -220,7 +220,7 @@ trait BinEntryScan {
 
     /// Read the next entry header, return the remaining length and the path
     fn next_scan(reader: &mut Self::Reader) -> Result<(u32, BinEntryPath)> {
-        let buf = reader.read_array::<{4 + 4}>()?;
+        let buf = reader.read_array_n::<{4 + 4}>()?;
         let (length, path) = parse_buf!(buf, (le_u32, BinEntryPath::binparse));
         Ok((length - 4, path))  // path has been read, deduct it from length
     }

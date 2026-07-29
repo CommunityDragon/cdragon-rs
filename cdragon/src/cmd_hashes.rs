@@ -3,6 +3,7 @@ use std::io;
 use std::io::{BufRead, Write};
 use std::collections::HashSet;
 use std::path::{PathBuf, Path};
+use clap::ArgGroup;
 use cdragon_hashes::{
     bin::{BinHashKind, binhash_from_str},
     HashError,

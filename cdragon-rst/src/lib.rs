@@ -117,7 +117,7 @@ impl Rst {
             entry_offsets
         };
 
-        let has_trenc = version < 5 && reader.read_array::<1>()?[0] != 0;
+        let has_trenc = version < 5 && reader.read_array_n::<1>()?[0] != 0;
 
         let mut entry_data = Vec::new();
         reader.read_to_end(&mut entry_data)?;
@@ -135,7 +135,7 @@ impl Rst {
     /// Parse header, advance to the beginning of entry directory
     fn parse_header<R: Read + Seek>(reader: &mut R) -> Result<(u8, u8, Option<String>, u32)> {
         let version = {
-            let buf = reader.read_array::<{3 + 1}>()?;
+            let buf = reader.read_array_n::<{3 + 1}>()?;
             let (_, version) = parse_buf!(buf, (tag("RST"), le_u8));
             version
         };
@@ -146,8 +146,8 @@ impl Rst {
             _ => return Err(RstError::UnsupportedVersion(version)),
         };
 
-        let font_config = if version == 2 && reader.read_array::<1>()?[0] != 0 {
-            let buf = reader.read_array::<4>()?;
+        let font_config = if version == 2 && reader.read_array_n::<1>()?[0] != 0 {
+            let buf = reader.read_array_n::<4>()?;
             let n = parse_buf!(buf, le_u32);
             let mut buf = vec![0; n as usize];
             reader.read_exact(&mut buf)?;
@@ -157,7 +157,7 @@ impl Rst {
         };
 
         let entry_count = {
-            let buf = reader.read_array::<4>()?;
+            let buf = reader.read_array_n::<4>()?;
             parse_buf!(buf, le_u32)
         };
 
@@ -186,19 +186,19 @@ impl Rst {
     }
 
     /// Get a raw value from its key
-    pub fn get_raw<K: IntoRstKey>(&self, key: K) -> Option<RstRawValue> {
+    pub fn get_raw<K: IntoRstKey>(&self, key: K) -> Option<RstRawValue<'_>> {
         self.get_raw_by_hash(key.into_rst_key())
     }
 
     /// Get a raw value from its hash key
-    fn get_raw_by_hash(&self, key: u64) -> Option<RstRawValue> {
+    fn get_raw_by_hash(&self, key: u64) -> Option<RstRawValue<'_>> {
         let key = self.truncate_hash_key(key);
         let offset = *self.entry_offsets.get(&key)?;
         self.get_raw_by_offset(offset)
     }
 
     /// Get a raw value from its offset
-    fn get_raw_by_offset(&self, offset: usize) -> Option<RstRawValue> {
+    fn get_raw_by_offset(&self, offset: usize) -> Option<RstRawValue<'_>> {
         let data = &self.entry_data[offset..];
         if data[0] == 0xff && self.has_trenc {
             let size = u16::from_le_bytes(data[1..3].try_into().unwrap());

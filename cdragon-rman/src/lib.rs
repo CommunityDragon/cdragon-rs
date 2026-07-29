@@ -119,7 +119,7 @@ impl Rman {
         const HEADER_LEN: usize = MAGIC_VERSION_LEN + FIELDS_LEN;
 
         let version = {
-            let buf = reader.read_array::<MAGIC_VERSION_LEN>()?;
+            let buf = reader.read_array_n::<MAGIC_VERSION_LEN>()?;
             let (_, major, minor) = parse_buf!(buf, (tag("RMAN"), le_u8, le_u8));
             if (major, minor) != (2, 0) {
                 return Err(RmanError::UnsupportedVersion(major, minor));
@@ -128,7 +128,7 @@ impl Rman {
         };
 
         let (flags, manifest_id, zstd_length) = {
-            let buf = reader.read_array::<FIELDS_LEN>()?;
+            let buf = reader.read_array_n::<FIELDS_LEN>()?;
             let (flags, offset, zstd_length, manifest_id, _body_length) =
                 parse_buf!(buf, (le_u16, le_u32, le_u32, le_u64, le_u32));
             if flags & (1 << 9) == 0 {
@@ -164,7 +164,7 @@ impl Rman {
     }
 
     /// Iterate on flags (locales, platforms)
-    pub fn iter_flags(&self) -> OffsetTableIter<'_, FileFlagEntry> {
+    pub fn iter_flags(&self) -> OffsetTableIter<'_, FileFlagEntry<'_>> {
         let cursor = BodyCursor::new(&self.body, self.offset_flags);
         OffsetTableIter::new(cursor, parse_flag_entry)
     }
@@ -416,7 +416,7 @@ pub struct BundleEntry<'a> {
 
 impl<'a> BundleEntry<'a> {
     /// Iterate of bundle chunks
-    pub fn iter_chunks(&self) -> impl Iterator<Item=ChunkEntry> + 'a {
+    pub fn iter_chunks(&self) -> impl Iterator<Item=ChunkEntry> + use<'a> {
         OffsetTableIter::new(self.cursor.clone(), parse_chunk_entry)
             .scan(0u32, |offset, mut e| {
                 e.bundle_offset = *offset;
