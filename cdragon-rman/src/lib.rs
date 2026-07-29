@@ -121,11 +121,11 @@ impl Rman {
         let version = {
             let buf = reader.read_array_n::<MAGIC_VERSION_LEN>()?;
             let (_, major, minor) = parse_buf!(buf, (tag("RMAN"), le_u8, le_u8));
-            if (major, minor) != (2, 0) {
-                return Err(RmanError::UnsupportedVersion(major, minor));
+            match (major, minor) {
+                (2, 0) | (2, 1) => Ok((major, minor)),
+                _ => Err(RmanError::UnsupportedVersion(major, minor))
             }
-            (major, minor)
-        };
+        }?;
 
         let (flags, manifest_id, zstd_length) = {
             let buf = reader.read_array_n::<FIELDS_LEN>()?;
