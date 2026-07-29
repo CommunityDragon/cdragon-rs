@@ -31,11 +31,13 @@ pub struct CdnDownloader {
 
 impl CdnDownloader {
     /// Default CDN URL
-    pub const DEFAULT_URL: &'static str = "https://lol.dyn.riotcdn.net";
+    pub const LOL_URL: &'static str = "https://lol.dyn.riotcdn.net";
+    /// CDN URL for TFT
+    pub const TFT_URL: &'static str = "https://teamfighttactics.dyn.riotcdn.net";
 
     /// Use default Riot CDN
     pub fn new() -> Result<Self> {
-        Self::from_base_url(Self::DEFAULT_URL)
+        Self::from_base_url(Self::LOL_URL)
     }
 
     /// Use given URL as base for all downloads
@@ -43,6 +45,23 @@ impl CdnDownloader {
         let client = Client::new();
         let url = Url::parse(url)?;
         Ok(Self { client, url })
+    }
+
+    /// Use given URL as base for all downloads
+    pub fn from_base_url_or_alias(url_or_alias: &str) -> Result<Self> {
+        let url = Self::resolve_base_url(url_or_alias);
+        let client = Client::new();
+        let url = Url::parse(url)?;
+        Ok(Self { client, url })
+    }
+
+    /// Check a CDN URL, convert known aliases
+    pub fn resolve_base_url(url_or_alias: &str) -> &str {
+        match url_or_alias {
+            "lol" => Self::LOL_URL,
+            "tft" => Self::TFT_URL,
+            url => url,
+        }
     }
 
     /// Build a bundle URL path from its ID

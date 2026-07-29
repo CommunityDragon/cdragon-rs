@@ -46,6 +46,9 @@ pub fn subcommand(name: &'static str) -> Subcommand {
                 .index(2)
                 .num_args(1..)
                 .help("Paths of files to download, `*` wildcards are supported"))
+            .arg(Arg::new("cdn")
+                .long("cdn")
+                .help("CDN to use: 'lol', 'tft' or a full URL"))
         )
         ;
 
@@ -107,7 +110,11 @@ fn handle(matches: &ArgMatches) -> CliResult {
             let output = Path::new(matches.get_one::<PathBuf>("output").unwrap());
             fs::create_dir_all(output)?;
 
-            let cdn = CdnDownloader::new()?;
+            let cdn = if let Some(url_or_alias) = matches.get_one::<String>("cdn") {
+                CdnDownloader::from_base_url_or_alias(url_or_alias)
+            } else {
+                CdnDownloader::new()
+            }?;
 
             // Process each file, one by one
             for (path, file_entry) in file_entries.into_iter() {
