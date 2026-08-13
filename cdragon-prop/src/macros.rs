@@ -47,6 +47,7 @@ macro_rules! binvalue_map_keytype {
         $crate::BinType::Float => { type $t = $crate::data::BinFloat; $e },
         $crate::BinType::String => { type $t = $crate::data::BinString; $e },
         $crate::BinType::Hash => { type $t = $crate::data::BinHash; $e },
+        $crate::BinType::Path => { type $t = $crate::data::BinPath; $e },
         _ => panic!("invalid type for map key: {}", $b as u8),
     })
 }
