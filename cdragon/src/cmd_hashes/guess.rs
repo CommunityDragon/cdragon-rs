@@ -463,6 +463,16 @@ impl BinHashGuesser {
                 }
             })
 
+            // Guess entry path from TftShopData.mName
+            .with_single_hook(binh!("TftShopData"), |entry, finder| {
+                if finder.is_unknown(BinHashKind::EntryPath, entry.path.hash) {
+                    let name = &binget!(entry => mName(BinString)).unwrap().0;
+                    let it = (1..30).map(|i| format!("Maps/Shipping/Map22/Sets/TFTSet{}/Shop/{}", i, name));
+                    finder.check_one_from_iter(BinHashKind::EntryPath, entry.path.hash, it);
+                    finder.check_one(BinHashKind::EntryPath, entry.path.hash, format!("Maps/Shipping/Map22/Shop/{}", name));
+                }
+            })
+
             // Guess ItemGroups path from ItemGroup.mItemGroupID (a hash)
             .with_single_hook(binh!("ItemGroup"), |entry, finder| {
                 if finder.is_unknown(BinHashKind::EntryPath, entry.path.hash) {
@@ -483,11 +493,23 @@ impl BinHashGuesser {
                 }
             })
 
-            // Guess AugmentData path from AugmentData.AugmentNameId
+            // Guess paths from AugmentData.AugmentNameId
             .with_single_hook(binh!("AugmentData"), |entry, finder| {
+                if let Some(augment_name) = binget!(entry => AugmentNameId(BinString)) {
+                    if finder.is_unknown(BinHashKind::EntryPath, entry.path.hash) {
+                        finder.check_one(BinHashKind::EntryPath, entry.path.hash, format!("Maps/ModeSpecificData/Augments/{}", &augment_name.0));
+                    }
+                    if let Some(root_spell) = binget!(entry => RootSpell(BinLink)) && finder.is_unknown(BinHashKind::EntryPath, root_spell.0.hash) {
+                        finder.check_one(BinHashKind::EntryPath, root_spell.0.hash, format!("Maps/ModeSpecificData/Augments/{}/Augment_{}", &augment_name.0, &augment_name.0));
+                    }
+                }
+            })
+
+            // Guess entry path from {0x8d31b69b}.QuestName
+            .with_single_hook(BinClassName { hash:0x8d31b69b }, |entry, finder| {
                 if finder.is_unknown(BinHashKind::EntryPath, entry.path.hash) {
-                    if let Some(s) = binget!(entry => AugmentNameId(BinString)) {
-                        finder.check_one(BinHashKind::EntryPath, entry.path.hash, format!("Maps/ModeSpecificData/Augments/{}", &s.0));
+                    if let Some(quest_name) = binget!(entry => QuestName(BinString)) {
+                        finder.check_one(BinHashKind::EntryPath, entry.path.hash, format!("Maps/ModeSpecificData/ModesQuests/{}", &quest_name.0));
                     }
                 }
             })
