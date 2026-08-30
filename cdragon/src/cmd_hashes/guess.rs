@@ -325,6 +325,14 @@ impl BinHashGuesser {
             binh!(BinClassName, "GlobalResourceResolver"),
         ];
 
+        const OBJECT_PATH_TYPES: [BinClassName; 5] = [
+            binh!(BinClassName, "VfxSystemDefinitionData"),
+            binh!(BinClassName, "SpellObject"),
+            binh!(BinClassName, "SkinCharacterDataProperties"),
+            binh!(BinClassName, "TftSkinCharacterDataProperties"),
+            binh!(BinClassName, "AnimationGraphData"),
+        ];
+
         /// Guess a hash key from a link value, check full path or basename
         fn guess_map_key_from_link_value(map: &BinMap, finder: &mut BinHashFinder) {
             if let Some(map) = &binget!(map => (BinHash, BinLink)) {
@@ -545,12 +553,12 @@ impl BinHashGuesser {
                 }
             })
 
-            // Guess VfxSystemDefinitionData.objectPath from its particlePath
-            .with_single_hook(binh!("VfxSystemDefinitionData"), |entry, finder| {
+            // Guess the objectPath hash from its own entry path
+            .with_multi_hook(&OBJECT_PATH_TYPES, |entry, finder| {
                 if let Some(object_path) = binget!(entry => objectPath(BinHash)) {
                     if finder.is_unknown(BinHashKind::HashValue, object_path.0.hash) {
-                        if let Some(particle_path) = binget!(entry => particlePath(BinString)) {
-                            finder.check_one(BinHashKind::HashValue, object_path.0.hash, &particle_path.0);
+                        if let Some(s) = finder.get_str(BinHashKind::EntryPath, entry.path.hash) {
+                            finder.check_one(BinHashKind::HashValue, object_path.0.hash, s.to_owned());
                         }
                     }
                 }
@@ -564,9 +572,14 @@ impl BinHashGuesser {
             binh!(BinClassName, "TFTCharacterRecord"),
         ];
 
+        const SKIN_CHARACTER_DATA_PROPERTIES: [BinClassName; 2] = [
+            binh!(BinClassName, "SkinCharacterDataProperties"),
+            binh!(BinClassName, "TftSkinCharacterDataProperties"),
+        ];
+
         self
             .with_multi_hook(&CHARACTER_RECORDS, on_character_record_entry)
-            .with_single_hook(binh!("SkinCharacterDataProperties"), on_skin_character_data_entry)
+            .with_multi_hook(&SKIN_CHARACTER_DATA_PROPERTIES, on_skin_character_data_entry)
             // Guess `AnimationGraphData.mClipDataMap` from `mAnimationResourceData.mAnimationFilePath`
             .with_single_hook(binh!("AnimationGraphData"), |entry, finder| {
                 fn check_clip_data(hash: u32, data: &BinStruct, finder: &mut BinHashFinder) -> Option<()> {
