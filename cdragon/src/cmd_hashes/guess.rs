@@ -261,7 +261,7 @@ impl BinHashGuesser {
 
         // Many types have their path in the `name` field
         // We could also check `name` in all cases but that would require to parse ALL entries.
-        const NAMED_TYPES: [BinClassName; 33] = [
+        const NAMED_TYPES: [BinClassName; 35] = [
             binh!(BinClassName, "StaticMaterialDef"),
             binh!(BinClassName, "UISceneData"),
             binh!(BinClassName, "UiElementEffectAmmoData"),
@@ -295,6 +295,8 @@ impl BinHashGuesser {
             binh!(BinClassName, "UiElementSpineAnimationData"),
             binh!(BinClassName, "UiElementTextData"),
             binh!(BinClassName, "UiSceneViewPaneData"),
+            binh!(BinClassName, "UiComponent"),
+            BinClassName { hash:0x857c08ad },
         ];
 
         self
@@ -349,7 +351,7 @@ impl BinHashGuesser {
                                         finder.check_one(BinHashKind::HashValue, k.0.hash, base.replace("Base_", ""));
                                         continue;
                                     }
-                                    for i in 1..30 {
+                                    for i in 1..90 {
                                         let skin_format = format!("Skin{:0>2}_", i);
                                         if base.contains(&skin_format) {
                                             finder.check_one(BinHashKind::HashValue, k.0.hash, base.replace(&skin_format, ""));
@@ -550,6 +552,15 @@ impl BinHashGuesser {
             .with_single_hook(binh!("MapContainer"), |entry, finder| {
                 if let Some(map) = &binget!(entry => chunks(BinMap)) {
                     guess_map_key_from_link_value(map, finder);
+                }
+            })
+
+            // Guess ItemData.mVFXResourceResolver.resourceMap keys from values
+            .with_single_hook(binh!("ItemData"), |entry, finder| {
+                if let Some(resolver) = binget!(entry => mVFXResourceResolver(BinStruct)) {
+                    if let Some(map) = &binget!(resolver => resourceMap(BinMap)) {
+                        guess_map_key_from_link_value(map, finder);
+                    }
                 }
             })
 
