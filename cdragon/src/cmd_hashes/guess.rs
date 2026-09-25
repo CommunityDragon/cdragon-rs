@@ -319,6 +319,7 @@ impl BinHashGuesser {
             .with_hook(EntryPathPatternHook!(TooltipFormat.mObjectName => "UX/Tooltips/{}"))
             .with_hook(EntryPathPatternHook!(X3DSharedConstantBufferDef.name => "Shaders/SharedData/{}"))
             .with_hook(EntryPathPatternHook!(Character.name => "Characters/{}"))
+            .with_hook(EntryPathPatternHook!(CheatSet.mName => "Cheats/CheatSets/{}"))
     }
 
     /// Add relatively simple (but not trivial) hooks
