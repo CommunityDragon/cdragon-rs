@@ -320,6 +320,9 @@ impl BinHashGuesser {
             .with_hook(EntryPathPatternHook!(X3DSharedConstantBufferDef.name => "Shaders/SharedData/{}"))
             .with_hook(EntryPathPatternHook!(Character.name => "Characters/{}"))
             .with_hook(EntryPathPatternHook!(CheatSet.mName => "Cheats/CheatSets/{}"))
+            .with_hook(EntryPathPatternHook!(TftPassAsset.internalName => "Passes/TFT/Assets/{}"))
+            .with_hook(EntryPathPatternHook!(GuestOfHonor.name => "Maps/Shipping/Map30/GuestOfHonor/{}"))
+            .with_hook(EntryPathPatternHook!(TftZoomSkin.name => "Loadouts/TFTZoomSkins/{}"))
     }
 
     /// Add relatively simple (but not trivial) hooks
@@ -475,6 +478,22 @@ impl BinHashGuesser {
                 }
             })
 
+            // Guess TftItemData path from TftItemData.mName
+            .with_single_hook(binh!("TftItemData"), |entry, finder| {
+                if finder.is_unknown(BinHashKind::EntryPath, entry.path.hash) {
+                    let name = &binget!(entry => mName(BinString)).unwrap().0;
+                    let it = (1..30).map(|i| format!("Maps/Shipping/Map22/Sets/TFTSet{}/Augments/{}", i, name));
+                    finder.check_one_from_iter(BinHashKind::EntryPath, entry.path.hash, it);
+                    let it = (1..30).map(|i| format!("Maps/Shipping/Map22/Sets/TFTSet{}/Items/{}", i, name));
+                    finder.check_one_from_iter(BinHashKind::EntryPath, entry.path.hash, it);
+                    let it = (1..30).map(|i| format!("Maps/Shipping/Map22/Augments/Set{}/{}", i, name));
+                    finder.check_one_from_iter(BinHashKind::EntryPath, entry.path.hash, it);
+                    finder.check_one(BinHashKind::EntryPath, entry.path.hash, format!("Maps/Shipping/Map22/Items/{}", name));
+                    finder.check_one(BinHashKind::EntryPath, entry.path.hash, format!("Maps/Shipping/Map22/Augments/{}", name));
+                    finder.check_one(BinHashKind::EntryPath, entry.path.hash, format!("Maps/Shipping/Map22/Augments/Shared/{}", name));
+                }
+            })
+
             // Guess entry path from TftShopData.mName
             .with_single_hook(binh!("TftShopData"), |entry, finder| {
                 if finder.is_unknown(BinHashKind::EntryPath, entry.path.hash) {
@@ -482,6 +501,62 @@ impl BinHashGuesser {
                     let it = (1..30).map(|i| format!("Maps/Shipping/Map22/Sets/TFTSet{}/Shop/{}", i, name));
                     finder.check_one_from_iter(BinHashKind::EntryPath, entry.path.hash, it);
                     finder.check_one(BinHashKind::EntryPath, entry.path.hash, format!("Maps/Shipping/Map22/Shop/{}", name));
+                }
+            })
+
+            // Guess entry path from TftItemList.name
+            .with_single_hook(binh!("TftItemList"), |entry, finder| {
+                if finder.is_unknown(BinHashKind::EntryPath, entry.path.hash) {
+                    let name = &binget!(entry => name(BinString)).unwrap().0;
+                    let it = (1..30).map(|i| format!("Maps/Shipping/Map22/Sets/TFTSet{}/{}", i, name));
+                    finder.check_one_from_iter(BinHashKind::EntryPath, entry.path.hash, it);
+                }
+            })
+
+            // Guess entry path and VfxResourceResolver hash from TFTDamageSkin.mName
+            .with_single_hook(binh!("TFTDamageSkin"), |entry, finder| {
+                if finder.is_unknown(BinHashKind::EntryPath, entry.path.hash) {
+                    if let Some(tiered_name) = binget!(entry => mName(BinString)) {
+                        if let Some((name, _)) = tiered_name.0.rsplit_once("_") {
+                            finder.check_one(BinHashKind::EntryPath, entry.path.hash, format!("Loadouts/TFTDamageSkins/{}/{}", name, tiered_name.0));
+                        }
+                    }
+                }
+
+                if let Some(entry_path) = finder.get_str(BinHashKind::EntryPath, entry.path.hash) {
+                    let entry_path = entry_path.to_owned();
+                    if let Some(hash) = binget!(entry => VfxResourceResolver(BinHash)) {
+                        finder.check_one(BinHashKind::EntryPath, hash.0.hash, format!("{}/ResourceBin/Resources", entry_path));
+                        finder.check_one(BinHashKind::HashValue, hash.0.hash, format!("{}/ResourceBin/Resources", entry_path));
+                    }
+                }
+            })
+
+            // Guess entry path and VfxResourceResolver hash from TftPlaybook.name
+            .with_single_hook(binh!("TftPlaybook"), |entry, finder| {
+                if finder.is_unknown(BinHashKind::EntryPath, entry.path.hash) {
+                    if let Some(name) = binget!(entry => name(BinString)) {
+                        finder.check_one(BinHashKind::EntryPath, entry.path.hash, format!("Loadouts/TFTPlaybooks/{}", name.0.replace(' ', "")));
+                    }
+                }
+
+                if let Some(entry_path) = finder.get_str(BinHashKind::EntryPath, entry.path.hash) {
+                    let entry_path = entry_path.to_owned();
+                    if let Some(hash) = binget!(entry => VfxResourceResolver(BinHash)) {
+                        finder.check_one(BinHashKind::EntryPath, hash.0.hash, format!("{}/Resources", entry_path));
+                        finder.check_one(BinHashKind::HashValue, hash.0.hash, format!("{}/Resources", entry_path));
+                    }
+                }
+            })
+
+            // Guess VfxResourceResolver hash from entry path
+            .with_single_hook(binh!("TftZoomSkin"), |entry, finder| {
+                if let Some(entry_path) = finder.get_str(BinHashKind::EntryPath, entry.path.hash) {
+                    let entry_path = entry_path.to_owned();
+                    if let Some(hash) = binget!(entry => VfxResourceResolver(BinHash)) {
+                        finder.check_one(BinHashKind::EntryPath, hash.0.hash, format!("{}/ResourceBin/Resources", entry_path));
+                        finder.check_one(BinHashKind::HashValue, hash.0.hash, format!("{}/ResourceBin/Resources", entry_path));
+                    }
                 }
             })
 
@@ -510,6 +585,8 @@ impl BinHashGuesser {
                 if let Some(augment_name) = binget!(entry => AugmentNameId(BinString)) {
                     if finder.is_unknown(BinHashKind::EntryPath, entry.path.hash) {
                         finder.check_one(BinHashKind::EntryPath, entry.path.hash, format!("Maps/ModeSpecificData/Augments/{}", &augment_name.0));
+                        let it = [11, 12, 21, 22, 30, 33, 35].iter().map(|i| format!("Maps/Shipping/Map{}/AugmentTags/{}", i, &augment_name.0));
+                        finder.check_one_from_iter(BinHashKind::EntryPath, entry.path.hash, it);
                     }
                     if let Some(root_spell) = binget!(entry => RootSpell(BinLink)) && finder.is_unknown(BinHashKind::EntryPath, root_spell.0.hash) {
                         finder.check_one(BinHashKind::EntryPath, root_spell.0.hash, format!("Maps/ModeSpecificData/Augments/{}/Augment_{}", &augment_name.0, &augment_name.0));
@@ -528,10 +605,19 @@ impl BinHashGuesser {
 
             // Guess CompanionSpeciesData path from CompanionData.speciesLink
             .with_single_hook(binh!("CompanionData"), |entry, finder| {
+                if let Some(s) = binget!(entry => speciesLink(BinString)) {
+                    finder.check_any(BinHashKind::EntryPath, &s.0);
+                }
+            })
+
+            // Guess ChallengeConfigData path from ChallengeConfigData.ID
+            .with_single_hook(binh!("ChallengeConfigData"), |entry, finder| {
                 if finder.is_unknown(BinHashKind::EntryPath, entry.path.hash) {
-                    if let Some(s) = binget!(entry => speciesLink(BinString)) {
-                        finder.check_any(BinHashKind::EntryPath, &s.0);
-                    }
+                    let id = match binget!(entry => ID(BinU64)) {
+                        Some(id) => id.0,
+                        None => 0,
+                    };
+                    finder.check_one(BinHashKind::EntryPath, entry.path.hash, format!("LCU/Challenges/Config/{}/Config", id));
                 }
             })
 
