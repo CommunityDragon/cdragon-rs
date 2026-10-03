@@ -517,8 +517,8 @@ impl BinHashGuesser {
                 }
             })
 
-            // Guess entry path from {0x8d31b69b}.QuestName
-            .with_single_hook(BinClassName { hash:0x8d31b69b }, |entry, finder| {
+            // Guess entry path from ModesQuestData.QuestName
+            .with_single_hook(binh!("ModesQuestData"), |entry, finder| {
                 if finder.is_unknown(BinHashKind::EntryPath, entry.path.hash) {
                     if let Some(quest_name) = binget!(entry => QuestName(BinString)) {
                         finder.check_one(BinHashKind::EntryPath, entry.path.hash, format!("Maps/ModeSpecificData/ModesQuests/{}", &quest_name.0));
@@ -876,10 +876,10 @@ impl GuessingHook for ItemHashListsHook {
 
     fn on_entry(&mut self, entry: &BinEntry, _finder: &mut BinHashFinder) {
         if entry.ctype == binh!("ItemShopGameModeData") {
-            self.extend_with_list(binget!(entry => 0xc561f8e9(BinList)));
-            self.extend_with_list(binget!(entry => 0x37792a41(BinList)));
+            self.extend_with_list(binget!(entry => RecOverrideSmiteStartingItems(BinList)));
+            self.extend_with_list(binget!(entry => PurchasedItemExclusionItems(BinList)));
             self.extend_with_list(binget!(entry => CompletedItems(BinList)));
-            self.extend_with_list(binget!(entry => 0x891a5676(BinStruct).items(BinList)));
+            self.extend_with_list(binget!(entry => ConsumablesQuickBuyData(BinStruct).items(BinList)));
         } else if entry.ctype == binh!("GameModeItemList") {
             self.extend_with_list(binget!(entry => mItems(BinList)));
         }
