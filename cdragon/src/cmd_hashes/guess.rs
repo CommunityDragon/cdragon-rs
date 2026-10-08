@@ -724,6 +724,7 @@ impl BinHashGuesser {
         self
             .with_hook(Box::<ItemHashListsHook>::default())
             .with_hook(Box::<ScriptPathsHook>::default())
+            .with_hook(Box::<GameModeLinksHook>::default())
     }
 
     /// End guessing, return the updated finder
@@ -1023,6 +1024,16 @@ fn resource_key_candidates(base: &str) -> Vec<String> {
     candidates
 }
 
+/// Returns the prefixes of `name` that end at a word boundary, and `name` itself.
+/// A word boundary is before an uppercase letter that follows a lowercase letter or a digit.
+fn word_prefixes(name: &str) -> impl Iterator<Item=&str> {
+    let bytes = name.as_bytes();
+    (1..bytes.len())
+        .filter(move |&i| bytes[i].is_ascii_uppercase() && (bytes[i - 1].is_ascii_lowercase() || bytes[i - 1].is_ascii_digit()))
+        .map(move |i| &name[..i])
+        .chain(std::iter::once(name))
+}
+
 /// Hook that guesses the entry paths of script entries from `ScriptName`
 ///
 /// Checked formats:
@@ -1098,6 +1109,104 @@ impl GuessingHook for ScriptPathsHook {
                 let path = path.to_owned();
                 finder.check_one(BinHashKind::HashValue, *hash, path);
             }
+        }
+    }
+}
+
+/// Link of a `GameModeMapData` entry to an entry whose path is unknown
+struct GameModeLink {
+    /// Path hash of the linked entry
+    target: u32,
+    /// `Maps/Shipping/{map}` directory of the linking entry
+    map_dir: String,
+    /// Name of the linking field, without its `m` prefix. `None` for a link in a list.
+    field: Option<String>,
+}
+
+/// Hook that guesses the entry paths of the entries linked by `GameModeMapData`
+///
+/// The candidate names of a linked entry are the name of the linking field, the class name of
+/// the linked entry and the prefixes of this class name. Checked formats, for each mode:
+/// - `Maps/Shipping/{map}/GameModeConfigs/{name}_{mode}`
+/// - `Maps/Shipping/{map}/GameModeConfigs/{name}`
+/// - `Maps/Shipping/{map}/Configs/{name}`
+/// - `Maps/Shipping/{map}/{name}`
+/// - `Maps/Shipping/Common/{name}`
+/// - `UX/HUD/Globals/{name}`
+#[derive(Default)]
+pub struct GameModeLinksHook {
+    links: Vec<GameModeLink>,
+    /// Mode names, from the paths of the `GameModeMapData` entries
+    modes: HashSet<String>,
+}
+
+impl GuessingHook for GameModeLinksHook {
+    fn entry_types(&self) -> &[BinClassName] {
+        const TYPES: [BinClassName; 1] = [binh!(BinClassName, "GameModeMapData")];
+        &TYPES
+    }
+
+    fn on_entry(&mut self, entry: &BinEntry, finder: &mut BinHashFinder) {
+        // Path format is `Maps/Shipping/{map}/Modes/{mode}`
+        let (map_dir, mode) = match finder.get_str(BinHashKind::EntryPath, entry.path.hash).and_then(|s| s.split_once("/Modes/")) {
+            Some((map_dir, mode)) => (map_dir.to_owned(), mode.to_owned()),
+            None => return,
+        };
+        self.modes.insert(mode);
+
+        for field in &entry.fields {
+            if let Some(link) = field.downcast::<BinLink>() {
+                if finder.is_unknown(BinHashKind::EntryPath, link.0.hash) {
+                    let name = finder.get_str(BinHashKind::FieldName, field.name.hash).map(|s| {
+                        match s.strip_prefix('m') {
+                            Some(rest) if rest.starts_with(|c: char| c.is_ascii_uppercase()) => rest,
+                            _ => s,
+                        }.to_owned()
+                    });
+                    self.links.push(GameModeLink { target: link.0.hash, map_dir: map_dir.clone(), field: name });
+                }
+            } else if let Some(links) = field.downcast::<BinList>().and_then(|list| list.downcast::<BinLink>()) {
+                for link in links {
+                    if finder.is_unknown(BinHashKind::EntryPath, link.0.hash) {
+                        self.links.push(GameModeLink { target: link.0.hash, map_dir: map_dir.clone(), field: None });
+                    }
+                }
+            }
+        }
+    }
+
+    fn on_end(&mut self, finder: &mut BinHashFinder, entries_by_type: &HashMap<BinClassName, Vec<BinEntryPath>>) {
+        if self.links.is_empty() {
+            return;
+        }
+
+        // Get the class name of each linked entry
+        let targets: HashSet<u32> = self.links.iter().map(|link| link.target).collect();
+        let mut class_names: HashMap<u32, String> = HashMap::new();
+        for (ctype, paths) in entries_by_type {
+            if let Some(name) = finder.get_str(BinHashKind::ClassName, ctype.hash) {
+                for path in paths.iter().filter(|path| targets.contains(&path.hash)) {
+                    class_names.insert(path.hash, name.to_owned());
+                }
+            }
+        }
+
+        for link in &self.links {
+            let class_name = class_names.get(&link.target);
+            let names = link.field.as_deref().into_iter()
+                .chain(class_name.into_iter().flat_map(|name| word_prefixes(name)));
+            let it = names.flat_map(|name| {
+                self.modes.iter()
+                    .map(move |mode| format!("{}/GameModeConfigs/{}_{}", link.map_dir, name, mode))
+                    .chain([
+                        format!("{}/GameModeConfigs/{}", link.map_dir, name),
+                        format!("{}/Configs/{}", link.map_dir, name),
+                        format!("{}/{}", link.map_dir, name),
+                        format!("Maps/Shipping/Common/{}", name),
+                        format!("UX/HUD/Globals/{}", name),
+                    ])
+            });
+            finder.check_one_from_iter(BinHashKind::EntryPath, link.target, it);
         }
     }
 }
