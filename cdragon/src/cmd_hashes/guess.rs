@@ -1023,28 +1023,28 @@ fn base_token_len(s: &[u8]) -> Option<usize> {
     (s.len() >= 5 && s[..5].eq_ignore_ascii_case(b"base_")).then_some(5)
 }
 
-/// Returns `name` without the tokens that `token_len` matches, and the text after the first of
-/// these tokens.
+/// Returns `name` with each token that `token_len` matches replaced by `replacement`.
 /// Returns `None` if `name` contains no such token.
-fn strip_tokens(name: &str, token_len: fn(&[u8]) -> Option<usize>) -> Option<(String, &str)> {
+fn replace_tokens(name: &str, token_len: fn(&[u8]) -> Option<usize>, replacement: &str) -> Option<String> {
     let bytes = name.as_bytes();
-    let mut stripped = String::with_capacity(name.len());
-    let mut tail = None;
-    // Start of the text that is not copied to `stripped` yet
+    let mut replaced = String::with_capacity(name.len());
+    let mut found = false;
+    // Start of the text that is not copied to `replaced` yet
     let mut start = 0;
     let mut i = 0;
     while i < bytes.len() {
         if let Some(len) = token_len(&bytes[i..]) {
-            stripped.push_str(&name[start..i]);
+            replaced.push_str(&name[start..i]);
+            replaced.push_str(replacement);
             i += len;
             start = i;
-            tail.get_or_insert(&name[i..]);
+            found = true;
         } else {
             i += 1;
         }
     }
-    stripped.push_str(&name[start..]);
-    tail.map(|tail| (stripped, tail))
+    replaced.push_str(&name[start..]);
+    found.then_some(replaced)
 }
 
 /// Returns `name` without its trailing `_{N}` or `_v{N}` token, where `{N}` is one or more digits.
@@ -1057,30 +1057,42 @@ fn strip_version_suffix(name: &str) -> Option<&str> {
 
 /// Returns the map keys to try for a link to an entry whose path ends with `base`.
 ///
-/// Each candidate is `base` with one change:
-/// - without its `Skin{N}_` tokens, or without its `Base_` tokens
-/// - without these tokens and without a trailing version token
-/// - reduced to the text after the first of these tokens
-/// - without its first `_`-separated token
-/// - without a trailing version token
+/// The candidates are:
+/// - `base` without its `Skin{N}_` tokens, or without its `Base_` tokens
+/// - the same names without a trailing version token
+/// - `base` with each `Skin{N}_` token replaced by `Base_`
+/// - each suffix of `base` that starts after a `_`
+/// - `base` without one of its `_`-separated tokens
+/// - `base` without two adjacent `_`-separated tokens
 fn resource_key_candidates(base: &str) -> Vec<String> {
     const TOKENS: [fn(&[u8]) -> Option<usize>; 2] = [skin_token_len, base_token_len];
 
     let mut candidates = Vec::new();
     for token_len in TOKENS {
-        if let Some((stripped, tail)) = strip_tokens(base, token_len) {
+        if let Some(stripped) = replace_tokens(base, token_len, "") {
             if let Some(unversioned) = strip_version_suffix(&stripped) {
                 candidates.push(unversioned.to_owned());
             }
-            candidates.push(tail.to_owned());
             candidates.push(stripped);
         }
     }
-    if let Some((_, rest)) = base.split_once('_') {
-        candidates.push(rest.to_owned());
+    if let Some(replaced) = replace_tokens(base, skin_token_len, "Base_") {
+        candidates.push(replaced);
     }
-    if let Some(unversioned) = strip_version_suffix(base) {
-        candidates.push(unversioned.to_owned());
+
+    let tokens: Vec<&str> = base.split('_').collect();
+    for i in 1..tokens.len() {
+        candidates.push(tokens[i..].join("_"));
+    }
+    if tokens.len() > 1 {
+        for i in 0..tokens.len() {
+            candidates.push([&tokens[..i], &tokens[i + 1..]].concat().join("_"));
+        }
+    }
+    if tokens.len() > 2 {
+        for i in 0..tokens.len() - 1 {
+            candidates.push([&tokens[..i], &tokens[i + 2..]].concat().join("_"));
+        }
     }
     candidates
 }
