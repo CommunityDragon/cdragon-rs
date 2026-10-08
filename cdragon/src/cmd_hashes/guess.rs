@@ -450,8 +450,9 @@ impl BinHashGuesser {
                     if finder.check_one_from_iter(BinHashKind::EntryPath, entry.path.hash, it) {
                         return;
                     }
-                    if let Some((id, _)) = name.split_once(|c: char| !c.is_ascii_digit()) {
-                        finder.check_one(BinHashKind::EntryPath, entry.path.hash, format!("Items/{}/Spells/{}", id, name));
+                    if let Some((id, _)) = name.split_once(|c: char| !c.is_ascii_digit())
+                    && finder.check_one(BinHashKind::EntryPath, entry.path.hash, format!("Items/{}/Spells/{}", id, name)) {
+                        return;
                     }
                     // A child spell of a map spell is under its parent: `Maps/Shipping/Map{id}/Spells/{parent}/{name}`
                     // The parent name is a prefix of the child name
