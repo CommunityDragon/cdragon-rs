@@ -323,6 +323,7 @@ impl BinHashGuesser {
             .with_hook(EntryPathPatternHook!(TftPassAsset.internalName => "Passes/TFT/Assets/{}"))
             .with_hook(EntryPathPatternHook!(GuestOfHonor.name => "Maps/Shipping/Map30/GuestOfHonor/{}"))
             .with_hook(EntryPathPatternHook!(TftZoomSkin.name => "Loadouts/TFTZoomSkins/{}"))
+            .with_hook(EntryPathPatternHook!(DesignerEvent.name => "Globals/DesignerEvents/{}"))
     }
 
     /// Add relatively simple (but not trivial) hooks
