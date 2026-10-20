@@ -3,7 +3,7 @@ use std::io::Read;
 use nom::{
     number::complete::{le_u8, le_i8, le_u16, le_i16, le_u32, le_i32, le_u64, le_i64, le_f32},
     bytes::complete::{tag, take},
-    combinator::{map, flat_map, opt},
+    combinator::{map, opt},
     sequence::pair,
     multi::count,
     Parser,
@@ -16,13 +16,49 @@ use super::{
     binvalue_map_keytype,
     binvalue_map_type,
 };
+use thiserror::Error;
 use cdragon_hashes::HashDef;
 use cdragon_utils::{
-    parsing::{ParseError, IResult, ReadArray},
+    parsing::{ParseError, ReadArray},
     parse_buf,
 };
 
+
+type IResult<I, O> = nom::IResult<I, O, BinParseError<I>>;
 type Result<T> = std::result::Result<T, ParseError>;
+
+macro_rules! bin_parse_buf {
+    ($buf:expr, $parser:expr) => { parse_buf!(BinParseError<&[u8]>, $buf, $parser) }
+}
+
+/// Error in parsing of bin data
+#[allow(missing_docs)]
+#[derive(Error, Debug)]
+pub enum BinParseError<I> {
+    #[error(transparent)]
+    Nom(#[from] nom::error::Error<I>),
+    #[error("invalid BIN type {0}")]
+    InvalidBinType(u8),
+    #[error(transparent)]
+    InvalidUtf8(std::str::Utf8Error),
+}
+
+impl<I> nom::error::ParseError<I> for BinParseError<I> {
+    fn from_error_kind(input: I, kind: nom::error::ErrorKind) -> Self {
+        Self::Nom(nom::error::Error::new(input, kind))
+    }
+
+    fn append(_input: I, _kind: nom::error::ErrorKind, other: Self) -> Self {
+        other
+    }
+}
+
+impl<I, E> nom::error::FromExternalError<I, E> for BinParseError<I> {
+    /// Create a new error from an input position and an external error
+    fn from_external_error(input: I, kind: nom::error::ErrorKind, _e: E) -> Self {
+        Self::Nom(nom::error::Error::new(input, kind))
+    }
+}
 
 
 /// Trait satisfied by values that can be parsed from binary data
@@ -39,7 +75,7 @@ pub(super) fn binparse<T: BinParsable>(i: &[u8]) -> Result<T> {
                 Ok(v)
             }
         },
-        Err(e) => Err(e.into())
+        Err(e) => Err(ParseError::Error(format!("{:?}", e)))
     }
 }
 
@@ -131,10 +167,10 @@ impl<R: Read> BinEntryScanner<R> {
         let (is_patch, version): (bool, u32) = {
             let mut buf = [0u8; 4 + 4 + 4];  // maximum size needed
             reader.read_exact(&mut buf[..8])?;
-            let is_patch = match parse_buf!(buf[..4], opt(tag("PTCH"))) {
+            let is_patch = match bin_parse_buf!(buf[..4], opt(tag("PTCH"))) {
                 Some(_) => {
                     reader.read_exact(&mut buf[8..12])?;
-                    let header = parse_buf!(buf[4..12], (le_u32, le_u32));
+                    let header = bin_parse_buf!(buf[4..12], (le_u32, le_u32));
                     assert_eq!(header, (1, 0));
                     reader.read_exact(&mut buf[..8])?;
                     true
@@ -142,17 +178,17 @@ impl<R: Read> BinEntryScanner<R> {
                 None => false
             };
 
-            let (_, version) = parse_buf!(buf[..8], (tag("PROP"), le_u32));
+            let (_, version) = bin_parse_buf!(buf[..8], (tag("PROP"), le_u32));
             (is_patch, version)
         };
 
         if version >= 2 {
             // Skip linked files
             let buf = reader.read_array_n::<4>()?;
-            let n = parse_buf!(buf, le_u32);
+            let n = bin_parse_buf!(buf, le_u32);
             for _ in 0..n {
                 let buf = reader.read_array_n::<2>()?;
-                let n = parse_buf!(buf, le_u16);
+                let n = bin_parse_buf!(buf, le_u16);
                 std::io::copy(&mut reader.by_ref().take(n as u64), &mut std::io::sink())?;
             }
         };
@@ -160,10 +196,10 @@ impl<R: Read> BinEntryScanner<R> {
         // Parse entry types
         let entry_types: Vec<BinClassName> = {
             let buf = reader.read_array_n::<4>()?;
-            let n = parse_buf!(buf, le_u32);
+            let n = bin_parse_buf!(buf, le_u32);
             let mut buf = Vec::<u8>::new();
             reader.by_ref().take(4 * n as u64).read_to_end(&mut buf)?;
-            let entry_types = parse_buf!(buf, count(BinClassName::binparse, n as usize));
+            let entry_types = bin_parse_buf!(buf, count(BinClassName::binparse, n as usize));
             entry_types
         };
 
@@ -221,7 +257,7 @@ trait BinEntryScan {
     /// Read the next entry header, return the remaining length and the path
     fn next_scan(reader: &mut Self::Reader) -> Result<(u32, BinEntryPath)> {
         let buf = reader.read_array_n::<{4 + 4}>()?;
-        let (length, path) = parse_buf!(buf, (le_u32, BinEntryPath::binparse));
+        let (length, path) = bin_parse_buf!(buf, (le_u32, BinEntryPath::binparse));
         Ok((length - 4, path))  // path has been read, deduct it from length
     }
 
@@ -229,7 +265,7 @@ trait BinEntryScan {
     fn read_fields(reader: &mut Self::Reader, length: u32) -> Result<Vec<BinField>> {
         let mut buf = Vec::<u8>::new();
         reader.by_ref().take(length as u64).read_to_end(&mut buf)?;
-        let fields = parse_buf!(buf, length_count(le_u16, BinField::binparse));
+        let fields = bin_parse_buf!(buf, length_count(le_u16, BinField::binparse));
         Ok(fields)
     }
 
@@ -418,7 +454,12 @@ fn parse_entry_from_header(i: &[u8], (path, ctype): BinEntryHeader) -> IResult<&
 }
 
 fn parse_binstring(i: &[u8]) -> IResult<&[u8], String> {
-    map(flat_map(le_u16, take), |s| std::str::from_utf8(s).expect("invalid UTF-8 string in BIN").to_string()).parse(i)
+    let (i, length) = le_u16(i)?;
+    let (i, s) = take(length)(i)?;
+    match std::str::from_utf8(s) {
+        Ok(s) => Ok((i, s.to_string())),
+        Err(e) => Err(nom::Err::Error(BinParseError::InvalidUtf8(e))),
+    }
 }
 
 
@@ -529,10 +570,17 @@ impl_binparsable!(BinPath, =BinPathValue::binparse);
 impl_binparsable!(BinLink, =BinEntryPath::binparse);
 impl_binparsable!(BinFlag, map(le_u8, |v| Self(v != 0u8)));
 impl_binparsable!(BinString, =parse_binstring);
-impl_binparsable!(BinType, map(le_u8, |mut v| {
-    if v >= 0x80 {
-        v = v - 0x80 + BinType::List as u8;
+
+impl BinParsable for BinType {
+    fn binparse(i: &[u8]) -> IResult<&[u8], Self> {
+        let (i, mut v) = le_u8(i)?;
+        if v >= 0x80 {
+            v = v - 0x80 + BinType::List as u8;
+        }
+        match BinType::try_from(v) {
+            Ok(v) => Ok((i, v)),
+            Err(_) => Err(nom::Err::Error(BinParseError::InvalidBinType(v))),
+        }
     }
-    Self::try_from(v).expect("invalid BIN type")
-}));
+}
 

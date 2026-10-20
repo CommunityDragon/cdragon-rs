@@ -135,7 +135,7 @@ impl Rman {
                 return Err(RmanError::UnsupportedFlags(flags));
             }
             if offset < HEADER_LEN as u32 {
-                return Err(ParseError::Error.into());
+                return Err(ParseError::UnexpectedData.into());
             } else if offset > HEADER_LEN as u32 {
                 let skipped_len = offset - HEADER_LEN as u32;
                 std::io::copy(&mut reader.take(skipped_len as u64), &mut std::io::sink())?;
