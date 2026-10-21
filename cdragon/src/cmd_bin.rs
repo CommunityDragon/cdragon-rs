@@ -32,6 +32,10 @@ pub fn subcommand(name: &'static str) -> Subcommand {
                 .short('j')
                 .action(ArgAction::SetTrue)
                 .help("Dump as JSON (output one object per `.bin` file)"))
+            .arg(Arg::new("ignore-errors")
+                .long("ignore-errors")
+                .action(ArgAction::SetTrue)
+                .help("Ignore entry with errors; print a message and continue"))
             .arg(Arg::new("entry-type")
                 .short('e')
                 .value_name("type")
@@ -50,6 +54,7 @@ fn handle(matches: &ArgMatches) -> CliResult {
                 _ => BinHashMappers::default(),
             };
 
+            let ignore_errors = matches.get_flag("ignore-errors");
             let mut writer = io::BufWriter::new(io::stdout());
             let mut serializer = build_bin_entry_serializer(&mut writer, &hmappers, matches.get_flag("json"))?;
             let filter: Box<dyn Fn(BinEntryPath, BinClassName) -> bool> = match matches.get_one::<String>("entry-type") {
@@ -63,10 +68,10 @@ fn handle(matches: &ArgMatches) -> CliResult {
             for path in matches.get_many::<PathBuf>("input").unwrap() {
                 if path.is_dir() {
                     for path in bin_files_from_dir(path) {
-                        serialize_bin_path(&path, &mut *serializer, &filter)?;
+                        serialize_bin_path(&path, &mut *serializer, &filter, ignore_errors)?;
                     }
                 } else {
-                    serialize_bin_path(path, &mut *serializer, &filter)?;
+                    serialize_bin_path(path, &mut *serializer, &filter, ignore_errors)?;
                 }
             }
 
@@ -78,10 +83,20 @@ fn handle(matches: &ArgMatches) -> CliResult {
 }
 
 /// Serialize entries from a given bin file path
-pub fn serialize_bin_path<F: Fn(BinEntryPath, BinClassName) -> bool>(path: &PathBuf, serializer: &mut dyn BinEntriesSerializer, filter: F) -> Result<()> {
+pub fn serialize_bin_path<F: Fn(BinEntryPath, BinClassName) -> bool>(path: &PathBuf, serializer: &mut dyn BinEntriesSerializer, filter: F, ignore_errors: bool) -> Result<()> {
     let scanner = PropFile::scan_entries_from_path(path)?;
-    scanner.filter_parse(filter).try_for_each(|entry| -> Result<(), _> {
-        serializer.write_entry(&entry?).map_err(|e| e.into())
-    })
+    scanner
+        .filter_parse(filter)
+        .filter(|entry| {
+            if let Err(e) = entry && ignore_errors {
+                eprintln!("Failed to parse entry: {}", e);
+                false
+            } else {
+                true
+            }
+        })
+        .try_for_each(|entry| -> Result<(), _> {
+            serializer.write_entry(&entry?).map_err(|e| e.into())
+        })
 }
 
