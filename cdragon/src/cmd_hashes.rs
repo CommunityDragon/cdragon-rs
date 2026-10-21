@@ -265,7 +265,10 @@ trait BinDirectoryVisitor: BinVisitor<Error=()> {
         for path in bin_files_from_dir(root) {
             let scanner = PropFile::scan_entries_from_path(path)?;
             for entry in scanner.parse() {
-                self.traverse_entry(&entry?).unwrap();  // never fails
+                match entry {
+                    Ok(entry) => self.traverse_entry(&entry).unwrap(),  // never fails
+                    Err(e) => eprintln!("Failed to parse entry: {}", e),
+                };
             }
         }
         Ok(self)
