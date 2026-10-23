@@ -333,12 +333,14 @@ impl BinHashGuesser {
             binh!(BinClassName, "GlobalResourceResolver"),
         ];
 
-        const OBJECT_PATH_TYPES: [BinClassName; 5] = [
+        const OBJECT_PATH_TYPES: [BinClassName; 7] = [
             binh!(BinClassName, "VfxSystemDefinitionData"),
             binh!(BinClassName, "SpellObject"),
             binh!(BinClassName, "SkinCharacterDataProperties"),
             binh!(BinClassName, "TftSkinCharacterDataProperties"),
             binh!(BinClassName, "AnimationGraphData"),
+            binh!(BinClassName, "MapSkin"),
+            binh!(BinClassName, "NexusFinisher"),
         ];
 
         /// Guess a hash key from a link value, check full path or basename
